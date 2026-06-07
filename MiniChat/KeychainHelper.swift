@@ -11,6 +11,9 @@ import Security
 enum KeychainHelper {
     private static let service = "com.minichat.apikey"
     private static let account = "minimax-api-key"
+    // Additional service/account for Exa API key
+    private static let exaService = "com.minichat.exa_apikey"
+    private static let exaAccount = "exa-api-key"
 
     enum KeychainError: LocalizedError {
         case unhandledError(status: OSStatus)
@@ -95,8 +98,75 @@ enum KeychainHelper {
         return status == errSecSuccess || status == errSecItemNotFound
     }
 
+    /// Usuwa Exa API key z Keychain.
+    @discardableResult
+    static func deleteExa() -> Bool {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: exaService,
+            kSecAttrAccount as String: exaAccount
+        ]
+
+        let status = SecItemDelete(query as CFDictionary)
+        return status == errSecSuccess || status == errSecItemNotFound
+    }
+
     /// Sprawdza, czy API key jest zapisany.
     static var hasAPIKey: Bool {
         read() != nil
+    }
+
+    // MARK: - Exa helpers
+
+    static func saveExa(_ value: String) throws {
+        guard let data = value.data(using: .utf8) else {
+            throw KeychainError.dataConversionError
+        }
+
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: exaService,
+            kSecAttrAccount as String: exaAccount
+        ]
+
+        let updateAttributes: [String: Any] = [
+            kSecValueData as String: data
+        ]
+
+        let updateStatus = SecItemUpdate(query as CFDictionary, updateAttributes as CFDictionary)
+
+        if updateStatus == errSecItemNotFound {
+            var addQuery = query
+            addQuery[kSecValueData as String] = data
+            addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+
+            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+            guard addStatus == errSecSuccess else {
+                throw KeychainError.unhandledError(status: addStatus)
+            }
+        } else if updateStatus != errSecSuccess {
+            throw KeychainError.unhandledError(status: updateStatus)
+        }
+    }
+
+    static func readExa() -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: exaService,
+            kSecAttrAccount as String: exaAccount,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+
+        guard status == errSecSuccess,
+              let data = item as? Data,
+              let value = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+
+        return value
     }
 }

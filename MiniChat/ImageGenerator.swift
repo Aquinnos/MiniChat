@@ -39,7 +39,12 @@ enum ImageGeneratorError: LocalizedError {
 final class ImageGenerator {
     static let shared = ImageGenerator()
 
-    private let baseURL = URL(string: "https://api.minimax.io/v1/image_generation")!
+    private let baseURL: URL = {
+        guard let u = URL(string: "https://api.minimax.io/v1/image_generation") else {
+            preconditionFailure("Invalid ImageGenerator base URL")
+        }
+        return u
+    }()
     private let session: URLSession
 
     init() {

@@ -401,28 +401,30 @@ struct ChatView: View {
 
     private var inputBar: some View {
         HStack(alignment: .bottom, spacing: 8) {
-            // Jeden przycisk "+" z 6 opcjami w menu
+            // Jeden przycisk "+" z opcjami w menu
+            // Photo + file: tylko dla modeli z supportsAttachments (M3)
+            // Image gen: działa dla wszystkich (client-side tool)
+            // Web search, folder, tools: dla wszystkich
             Menu {
-                Button {
-                    showPhotoPicker = true
-                } label: {
-                    Label("Dodaj zdjęcie", systemImage: "photo")
-                }
-                .disabled(!viewModel.selectedModel.supportsAttachments)
+                if viewModel.selectedModel.supportsAttachments {
+                    Button {
+                        showPhotoPicker = true
+                    } label: {
+                        Label("Dodaj zdjęcie", systemImage: "photo")
+                    }
 
-                Button {
-                    showFilePicker = true
-                } label: {
-                    Label("Dodaj plik", systemImage: "paperclip")
+                    Button {
+                        showFilePicker = true
+                    } label: {
+                        Label("Dodaj plik", systemImage: "paperclip")
+                    }
                 }
-                .disabled(!viewModel.selectedModel.supportsAttachments)
 
                 Button {
                     showImageGen = true
                 } label: {
                     Label("Generuj obraz", systemImage: "paintpalette.fill")
                 }
-                .disabled(!viewModel.selectedModel.supportsAttachments)
 
                 Divider()
 

@@ -10,9 +10,18 @@ import Testing
 struct MiniChatTests {
 
     @Test func example() async throws {
-        // Write your test here and use APIs like `#expect(...)` to check expected conditions.
-        // Swift Testing Documentation
-        // https://developer.apple.com/documentation/testing
+        // Basic sanity test
+        #expect(true == true)
+    }
+
+    @Test func test_parseSSEDataFull_parses_tool_calls() async throws {
+        let client = MiniMaxAPIClient()
+        let sample = "{"
+            + "\"choices\":[{\"delta\":{\"reasoning_content\":\"Thinking...\",\"tool_calls\":[{\"index\":0,\"id\":\"call1\",\"function\":{\"name\":\"web_search\",\"arguments\":\"{\\\"query\\\":\\\"ficus ginseng care\\\"}\"}}]}}]}"
+        let result = client.debug_parseSSEDataFull(sample)
+        #expect(result != nil)
+        #expect(result?.toolCallsCount == 1)
+        #expect(result?.reasoning.contains("Thinking") == true)
     }
 
 }

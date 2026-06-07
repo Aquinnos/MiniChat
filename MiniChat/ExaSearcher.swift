@@ -13,10 +13,10 @@ import Foundation
 final class ExaSearcher {
     static let shared = ExaSearcher()
 
-    /// Computed — czyta UserDefaults przy każdym wywołaniu, więc zmiana klucza w Ustawieniach
+    /// Computed — czyta Keychain przy każdym wywołaniu, więc zmiana klucza w Ustawieniach
     /// działa natychmiast (nie trzeba restartować aplikacji).
     private var apiKey: String {
-        UserDefaults.standard.string(forKey: "exaApiKey") ?? ""
+        KeychainHelper.readExa() ?? ""
     }
     private let session: URLSession
 
@@ -56,15 +56,16 @@ final class ExaSearcher {
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        print("🧠 [ExaSearch] Query: \(query)")
+        let preview = query.count > 80 ? String(query.prefix(80)) + "..." : query
+        Logger.log("ExaSearch query preview: \(preview) len=\(query.count)", category: "ExaSearch", redact: true)
 
         let (data, response) = try await session.data(for: request)
 
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
             let body = String(data: data, encoding: .utf8) ?? ""
-            print("❌ [ExaSearch] HTTP \(code): \(body.prefix(300))")
-            throw WebSearchError.networkError("HTTP \(code): \(body.prefix(200))")
+            Logger.log("ExaSearch HTTP \(code) body preview: \(body.prefix(300))", category: "ExaSearch", redact: true, level: .error)
+            throw WebSearchError.networkError("HTTP \(code): \(String(body.prefix(200)))")
         }
 
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {

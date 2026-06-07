@@ -62,9 +62,21 @@ final class WebSearcher {
         var request = URLRequest(url: components.url!)
         request.httpMethod = "GET"
 
-        print("🔍 [WebSearch] DuckDuckGo query: \(trimmed)")
+        // Log only masked preview to avoid leaking long user inputs
+        let preview = trimmed.count > 80 ? String(trimmed.prefix(80)) + "..." : trimmed
+        Logger.log("DuckDuckGo query preview: \(preview) len=\(trimmed.count)", category: "WebSearch", redact: true)
 
-        let (data, response) = try await session.data(for: request)
+        // Simple retry once on transient failure
+        var lastError: Error?
+        var data: Data
+        var response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            lastError = error
+            try await Task.sleep(nanoseconds: 1_000_000_000) // 1s
+            (data, response) = try await session.data(for: request)
+        }
 
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
@@ -72,14 +84,15 @@ final class WebSearcher {
             throw WebSearchError.networkError("HTTP \(code)")
         }
 
-        print("✅ [WebSearch] Got \(data.count) bytes")
+        Logger.log("WebSearch fetched \(data.count) bytes", category: "WebSearch")
 
         guard let html = String(data: data, encoding: .utf8) else {
             throw WebSearchError.parseError
         }
 
-        let results = parse(html: html, maxResults: maxResults)
-        print("✅ [WebSearch] Parsed \(results.count) results")
+        // Limit parsed HTML to first 20k characters to reduce regex cost
+        let htmlToParse = String(html.prefix(20_000))
+        let results = parse(html: htmlToParse, maxResults: maxResults)        print("✅ [WebSearch] Parsed \(results.count) results")
 
         if results.isEmpty {
             throw WebSearchError.noResults

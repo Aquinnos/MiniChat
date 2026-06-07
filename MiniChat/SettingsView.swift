@@ -113,7 +113,11 @@ struct SettingsView: View {
                 } footer: {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Exa.ai to AI-native search — wyniki preprocesowane pod LLM (highlights, semantyka). Darmowy tier na start.")
-                        Link("Pobierz klucz na dashboard.exa.ai", destination: URL(string: "https://dashboard.exa.ai/")!)
+                        if let exaURL = URL(string: "https://dashboard.exa.ai/") {
+                            Link("Pobierz klucz na dashboard.exa.ai", destination: exaURL)
+                        } else {
+                            Text("dashboard.exa.ai")
+                        }
                     }
                     .font(.caption)
                 }
@@ -232,7 +236,7 @@ struct SettingsView: View {
             .onAppear {
                 apiKey = KeychainHelper.read() ?? ""
                 apiBaseURL = UserDefaults.standard.string(forKey: "api_base_url") ?? MiniMaxAPIClient.defaultBaseURL
-                exaApiKey = UserDefaults.standard.string(forKey: "exaApiKey") ?? ""
+            exaApiKey = KeychainHelper.readExa() ?? ""
             }
         }
     }
@@ -245,7 +249,11 @@ struct SettingsView: View {
             try KeychainHelper.save(trimmed)
             UserDefaults.standard.set(trimmedURL, forKey: "api_base_url")
             UserDefaults.standard.set(webSearchEnabled, forKey: "webSearchEnabled")
-            UserDefaults.standard.set(trimmedExa, forKey: "exaApiKey")
+            if !trimmedExa.isEmpty {
+                try KeychainHelper.saveExa(trimmedExa)
+            } else {
+                KeychainHelper.deleteExa()
+            }
             saveStatus = "✅ Zapisano"
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                 dismiss()

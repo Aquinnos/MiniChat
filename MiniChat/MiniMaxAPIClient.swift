@@ -262,7 +262,7 @@ final class MiniMaxAPIClient {
     private var baseURLString: String {
         UserDefaults.standard.string(forKey: "api_base_url") ?? Self.defaultBaseURL
     }
-    private var baseURL: URL { URL(string: baseURLString)! }
+    private var baseURL: URL? { URL(string: baseURLString) }
     private let session: URLSession
 
     init() {
@@ -287,7 +287,7 @@ final class MiniMaxAPIClient {
             let task = Task {
                 do {
                     let toolCount = toolsOverride?.count ?? (enableTools ? 4 : 0)
-                    print("📡 [MiniMax] Starting stream, model=\(model.rawValue), msgs=\(messages.count), tools=\(toolCount)")
+                    Logger.log("Starting stream, model=\(model.rawValue), msgs=\(messages.count), tools=\(toolCount)", category: "MiniMax", redact: true)
                     try await performStreamWithTools(
                         messages: messages,
                         apiKey: apiKey,
@@ -296,17 +296,18 @@ final class MiniMaxAPIClient {
                         toolsOverride: toolsOverride,
                         continuation: continuation
                     )
-                    print("✅ [MiniMax] Stream finished")
+                    Logger.log("Stream finished", category: "MiniMax")
                     continuation.finish()
                 } catch is CancellationError {
-                    print("⏹ [MiniMax] Stream cancelled")
+                    Logger.log("Stream cancelled", category: "MiniMax")
                     continuation.finish()
                 } catch {
-                    print("❌ [MiniMax] Stream error: \(error.localizedDescription)")
+                    Logger.log("Stream error: \(error.localizedDescription)", category: "MiniMax", level: .error)
+
 
                     if let apiErr = error as? APIError,
                        case .timeout = apiErr {
-                        print("🔄 [MiniMax] Falling back to non-streaming…")
+                        Logger.log("Falling back to non-streaming…", category: "MiniMax")
                         do {
                             let fullText = try await performNonStream(
                                 messages: messages,
@@ -321,7 +322,7 @@ final class MiniMaxAPIClient {
                                 ))
                             }
                         } catch {
-                            print("❌ [MiniMax] Non-stream fallback also failed: \(error.localizedDescription)")
+                            Logger.log("Non-stream fallback also failed: \(error.localizedDescription)", category: "MiniMax", level: .error)
                         }
                     }
                     continuation.finish(throwing: error)
@@ -640,7 +641,8 @@ final class MiniMaxAPIClient {
             body["tools"] = tools
         }
 
-        var request = URLRequest(url: baseURL)
+        guard let url = URL(string: baseURLString) else { throw APIError.invalidURL }
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -677,6 +679,8 @@ final class MiniMaxAPIClient {
         var toolCallsMap: [Int: (id: String, name: String, args: String)] = [:]
         var finishReason: String?
         let streamTimeout: TimeInterval = 60
+        let maxBufferSize = 100_000 // limit buffered content to 100 KB
+        var bufferTruncatedLogged = false
 
         for try await line in bytes.lines {
             if Task.isCancelled { break }
@@ -684,8 +688,9 @@ final class MiniMaxAPIClient {
             let lastChunkTime = Date()
 
             if !firstLineLogged && lineCount <= 3 {
-                print("📋 [MiniMax] Line #\(lineCount) (len=\(line.count)): \(line.prefix(300))")
-                if lineCount == 3 { firstLineLogged = true }
+            // Avoid printing potentially sensitive payloads; only log line length and index
+            print("📋 [MiniMax] Line #\(lineCount) (len=\(line.count))")
+            if lineCount == 3 { firstLineLogged = true }
             }
 
             if Date().timeIntervalSince(lastChunkTime) > streamTimeout {
@@ -703,7 +708,19 @@ final class MiniMaxAPIClient {
                     chunkCount += 1
                     totalContent += parsed.content.count
                     totalReasoning += parsed.reasoning.count
-                    allContent += parsed.content
+                    // Append to buffer with limit to avoid unbounded memory growth
+                    if allContent.count + parsed.content.count <= maxBufferSize {
+                        allContent += parsed.content
+                    } else {
+                        let remaining = max(0, maxBufferSize - allContent.count)
+                        if remaining > 0 {
+                            allContent += String(parsed.content.prefix(remaining))
+                        }
+                        if !bufferTruncatedLogged {
+                            print("⚠️ [MiniMax] Buffer limit exceeded (\(maxBufferSize) chars). Truncating further tool output.")
+                            bufferTruncatedLogged = true
+                        }
+                    }
 
                     // Yield do UI - zależy od trybu
                     if bufferContent {
@@ -727,12 +744,14 @@ final class MiniMaxAPIClient {
                         finishReason = reason
                     }
 
-                    // Zbieraj tool_calls
+                    // Zbieraj tool_calls (z poprawnym mergowaniem partial deltas)
                     for tc in parsed.toolCalls {
                         if let existing = toolCallsMap[tc.index] {
+                            // Kolejne deltas mogą mieć puste name/id (przyszły w pierwszym delta)
+                            // Zachowaj poprzednie wartości jeśli nowe są puste
                             toolCallsMap[tc.index] = (
-                                id: tc.id,
-                                name: tc.name,
+                                id: tc.id.isEmpty ? existing.id : tc.id,
+                                name: tc.name.isEmpty ? existing.name : tc.name,
                                 args: existing.args + tc.argsDelta
                             )
                         } else {
@@ -884,6 +903,14 @@ final class MiniMaxAPIClient {
         return SSEDataFull(content: content, reasoning: reasoning, toolCalls: toolCalls, finishReason: finishReason)
     }
 
+    // Debug helper exposed for tests (only returns summary, safe for test assertions)
+    #if DEBUG
+    func debug_parseSSEDataFull(_ json: String) -> (content: String, reasoning: String, toolCallsCount: Int, finishReason: String?)? {
+        guard let parsed = parseSSEDataFull(json) else { return nil }
+        return (parsed.content, parsed.reasoning, parsed.toolCalls.count, parsed.finishReason)
+    }
+    #endif
+
     private func parseSSELine(_ json: String) -> StreamChunk? {
         guard let data = json.data(using: .utf8) else { return nil }
         guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -955,7 +982,8 @@ final class MiniMaxAPIClient {
             "stream": false
         ]
 
-        var request = URLRequest(url: baseURL)
+        guard let url = URL(string: baseURLString) else { throw APIError.invalidURL }
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")

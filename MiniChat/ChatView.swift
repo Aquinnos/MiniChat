@@ -32,7 +32,7 @@ struct ChatView: View {
     @State private var showToolsAccess = false
     @State private var showFolderPicker: Bool = false
     @State private var showPhotoPicker: Bool = false
-    @State private var webSearchEnabled: Bool = UserDefaults.standard.bool(forKey: "webSearchEnabled")
+    @State private var webSearchEnabled: Bool = UserDefaults.standard.object(forKey: "webSearchEnabled") as? Bool ?? true
     @FocusState private var inputFocused: Bool
 
     // Sliding panel state

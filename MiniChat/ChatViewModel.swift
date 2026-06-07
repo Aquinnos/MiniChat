@@ -182,15 +182,18 @@ final class ChatViewModel: ObservableObject {
         streamTask = Task {
             do {
                 // Jeśli preset ma własne tools - używamy ich (override)
-                // Jeśli nie - M3 dostaje domyślne 4, inne modele zależą od ustawienia
-                let webSearchEnabled = UserDefaults.standard.bool(forKey: "webSearchEnabled")
+                // W przeciwnym razie - WSZYSTKIE modele dostają 4 domyślne tools
+                // (web_search, generate_image, get_current_time, read_file)
+                // - M3: ma natywny web search
+                // - Inne: client-side tool loop (my wykonujemy search/image gen)
+                let webSearchEnabled = UserDefaults.standard.object(forKey: "webSearchEnabled") as? Bool ?? true
                 let enableTools: Bool
                 if toolsOverride != nil {
                     enableTools = false  // używamy override zamiast domyślnych
-                } else if model == .m3 {
-                    enableTools = true
                 } else {
-                    enableTools = webSearchEnabled
+                    // Domyślnie ON dla wszystkich modeli
+                    enableTools = true
+                    _ = webSearchEnabled  // zachowane dla potencjalnego toggle
                 }
 
                 let stream = apiClient.streamChatCompletion(

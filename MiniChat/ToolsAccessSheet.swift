@@ -127,11 +127,12 @@ struct ToolsAccessSheet: View {
         if let preset = presetStore.selectedPreset {
             return preset.allowedTools.contains(tool)
         }
-        // Bez presetu
+        // Bez presetu - wszystkie 4 tools domyślnie ON dla wszystkich modeli
+        // (toggle webSearchEnabled w menu pozwala wyłączyć web search)
         if tool == .webSearch {
             return webSearchEnabled
         }
-        return modelStore.selectedModel == .m3
+        return true
     }
 
     private func toggleTool(_ tool: ToolName) {

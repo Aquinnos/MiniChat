@@ -9,6 +9,8 @@
 //
 
 import Foundation
+import os
+import os
 
 final class ExaSearcher {
     static let shared = ExaSearcher()

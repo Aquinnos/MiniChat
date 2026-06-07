@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import os
 
 struct WebSearchResult: Codable {
     let title: String
@@ -67,13 +68,11 @@ final class WebSearcher {
         Logger.log("DuckDuckGo query preview: \(preview) len=\(trimmed.count)", category: "WebSearch", redact: true)
 
         // Simple retry once on transient failure
-        var lastError: Error?
         var data: Data
         var response: URLResponse
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            lastError = error
             try await Task.sleep(nanoseconds: 1_000_000_000) // 1s
             (data, response) = try await session.data(for: request)
         }

@@ -10,7 +10,6 @@
 
 import Foundation
 import os
-import os
 
 final class ExaSearcher {
     static let shared = ExaSearcher()
@@ -75,7 +74,7 @@ final class ExaSearcher {
         }
 
         guard let results = json["results"] as? [[String: Any]] else {
-            print("⚠️ [ExaSearch] No results in response")
+            Logger.log("No results in Exa response", category: "ExaSearch", redact: true, level: .error)
             throw WebSearchError.noResults
         }
 
@@ -99,7 +98,7 @@ final class ExaSearcher {
             ))
         }
 
-        print("✅ [ExaSearch] Got \(webResults.count) results")
+        Logger.log("Got \(webResults.count) Exa results", category: "ExaSearch", redact: true)
         if webResults.isEmpty {
             throw WebSearchError.noResults
         }
@@ -118,7 +117,7 @@ enum WebSearch {
             do {
                 return try await ExaSearcher.shared.search(query: query, maxResults: maxResults)
             } catch {
-                print("⚠️ [WebSearch] Exa failed, falling back to DDG: \(error)")
+                Logger.log("Exa failed, falling back to DDG: \(error)", category: "WebSearch", redact: true, level: .error)
                 return try await WebSearcher.shared.search(query: query, maxResults: maxResults)
             }
         }

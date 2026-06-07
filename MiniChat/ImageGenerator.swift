@@ -78,7 +78,7 @@ final class ImageGenerator {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        print("🎨 [ImageGen] Generating: \(prompt.prefix(80))...")
+        Logger.log("Generating image prompt: \(prompt.prefix(80))", category: "ImageGen", redact: true, level: .debug)
 
         let (data, response) = try await session.data(for: request)
 
@@ -88,7 +88,7 @@ final class ImageGenerator {
 
         guard (200...299).contains(http.statusCode) else {
             let bodyStr = String(data: data, encoding: .utf8) ?? ""
-            print("❌ [ImageGen] HTTP \(http.statusCode): \(bodyStr.prefix(200))")
+            Logger.log("ImageGen HTTP \(http.statusCode): \(bodyStr.prefix(200))", category: "ImageGen", redact: true, level: .error)
             throw ImageGeneratorError.httpError(http.statusCode, bodyStr)
         }
 
@@ -101,13 +101,13 @@ final class ImageGenerator {
            let statusCode = baseResp["status_code"] as? Int,
            statusCode != 0 {
             let msg = baseResp["status_msg"] as? String ?? "Unknown"
-            print("❌ [ImageGen] API error \(statusCode): \(msg)")
+            Logger.log("ImageGen API error \(statusCode): \(msg)", category: "ImageGen", redact: true, level: .error)
             throw ImageGeneratorError.apiError(statusCode, msg)
         }
 
         // Wyciągnij obraz
         guard let dataObj = json["data"] as? [String: Any] else {
-            print("❌ [ImageGen] No data in response")
+            Logger.log("ImageGen no data in response", category: "ImageGen", level: .error)
             throw ImageGeneratorError.noData
         }
 
@@ -122,7 +122,7 @@ final class ImageGenerator {
         }
 
         guard resultURL != nil || resultBase64 != nil else {
-            print("❌ [ImageGen] No image in response")
+            Logger.log("ImageGen no image in response", category: "ImageGen", level: .error)
             throw ImageGeneratorError.noData
         }
 
@@ -132,11 +132,11 @@ final class ImageGenerator {
            failed > 0,
            let success = meta["success_count"] as? Int,
            success == 0 {
-            print("❌ [ImageGen] All images blocked by content safety")
+            Logger.log("ImageGen all images blocked by content safety", category: "ImageGen", level: .error)
             throw ImageGeneratorError.apiError(1026, "Treść zablokowana przez filtr bezpieczeństwa")
         }
 
-        print("✅ [ImageGen] Success: url=\(resultURL != nil), base64=\(resultBase64 != nil)")
+        Logger.log("ImageGen success: url=\(resultURL != nil), base64=\(resultBase64 != nil)", category: "ImageGen")
 
         return ImageGenerationResult(
             imageURL: resultURL,

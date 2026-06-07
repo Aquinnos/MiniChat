@@ -474,13 +474,13 @@ final class MiniMaxAPIClient {
             guard let query = args["query"] as? String else {
                 return ToolExecutionResult(textResult: "Brak argumentu 'query'", images: [])
             }
-            print("🔍 [MiniMax] Web search: \(query)")
+            Logger.log("Web search query: \(query.prefix(200))", category: "MiniMax", redact: true)
             do {
                 let results = try await WebSearch.smartSearch(query: query)
                 let formatted = WebSearcher.formatResults(results)
                 return ToolExecutionResult(textResult: formatted, images: [])
             } catch {
-                print("❌ [MiniMax] Web search failed: \(error)")
+                Logger.log("Web search failed: \(error)", category: "MiniMax", redact: true, level: .error)
                 return ToolExecutionResult(textResult: "Błąd wyszukiwania: \(error.localizedDescription)", images: [])
             }
 
@@ -489,7 +489,7 @@ final class MiniMaxAPIClient {
                 return ToolExecutionResult(textResult: "Brak argumentu 'prompt'", images: [])
             }
             let aspectRatio = (args["aspect_ratio"] as? String) ?? "1:1"
-            print("🎨 [MiniMax] Generate image: \(prompt.prefix(80))...")
+            Logger.log("Generate image prompt: \(prompt.prefix(80))", category: "MiniMax", redact: true, level: .debug)
             do {
                 let result = try await ImageGenerator.shared.generate(
                     prompt: prompt,
@@ -513,13 +513,13 @@ final class MiniMaxAPIClient {
 
                 return ToolExecutionResult(textResult: textResult, images: images)
             } catch {
-                print("❌ [MiniMax] Image generation failed: \(error)")
+                Logger.log("Image generation failed: \(error)", category: "MiniMax", redact: true, level: .error)
                 return ToolExecutionResult(textResult: "Błąd generowania obrazu: \(error.localizedDescription)", images: [])
             }
 
         case "get_current_time":
             let format = (args["format"] as? String) ?? "full"
-            print("🕐 [MiniMax] Get current time (format: \(format))")
+            Logger.log("Get current time (format: \(format))", category: "MiniMax", level: .debug)
             let now = Date()
             let result: String
             switch format {
@@ -554,7 +554,7 @@ final class MiniMaxAPIClient {
                 return ToolExecutionResult(textResult: "Brak argumentu 'file_name'", images: [])
             }
             let maxChars = (args["max_chars"] as? Int) ?? 8000
-            print("📂 [MiniMax] Read file: \(fileName) (maxChars: \(maxChars))")
+            Logger.log("Read file request: \(fileName) (maxChars: \(maxChars))", category: "MiniMax", redact: true, level: .debug)
 
             // Szukaj załącznika po nazwie
             guard let attachment = attachments.first(where: { $0.fileName == fileName }) else {
@@ -650,7 +650,7 @@ final class MiniMaxAPIClient {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        print("📡 [MiniMax] Sending streaming request… (tools=\(tools.count))")
+        Logger.log("Sending streaming request (tools=\(tools.count))", category: "MiniMax", redact: true, level: .debug)
 
         let (bytes, response) = try await session.bytes(for: request)
 
@@ -658,9 +658,9 @@ final class MiniMaxAPIClient {
             throw APIError.invalidResponse
         }
 
-        print("📡 [MiniMax] HTTP \(httpResponse.statusCode)")
+        Logger.log("HTTP \(httpResponse.statusCode)", category: "MiniMax", redact: true)
         let ct = httpResponse.value(forHTTPHeaderField: "Content-Type") ?? "?"
-        print("📋 [MiniMax] Content-Type: \(ct)")
+        Logger.log("Content-Type: \(ct)", category: "MiniMax", redact: true)
 
         guard (200...299).contains(httpResponse.statusCode) else {
             var errorBody = ""
@@ -691,12 +691,12 @@ final class MiniMaxAPIClient {
 
             if !firstLineLogged && lineCount <= 3 {
             // Avoid printing potentially sensitive payloads; only log line length and index
-            print("📋 [MiniMax] Line #\(lineCount) (len=\(line.count))")
+            Logger.log("Line #\(lineCount) (len=\(line.count))", category: "MiniMax", redact: true, level: .debug)
             if lineCount == 3 { firstLineLogged = true }
             }
 
             if Date().timeIntervalSince(lastChunkTime) > streamTimeout {
-                print("⏱ [MiniMax] Stream timeout")
+                Logger.log("Stream timeout", category: "MiniMax", level: .error)
                 if chunkCount == 0 { throw APIError.timeout }
                 break
             }
@@ -719,7 +719,7 @@ final class MiniMaxAPIClient {
                             allContent += String(parsed.content.prefix(remaining))
                         }
                         if !bufferTruncatedLogged {
-                            print("⚠️ [MiniMax] Buffer limit exceeded (\(maxBufferSize) chars). Truncating further tool output.")
+                            Logger.log("Buffer limit exceeded (\(maxBufferSize) chars). Truncating further tool output.", category: "MiniMax", level: .error)
                             bufferTruncatedLogged = true
                         }
                     }
@@ -764,7 +764,7 @@ final class MiniMaxAPIClient {
             }
         }
 
-        print("📊 [MiniMax] Stream ended: \(chunkCount) chunks, \(totalContent) content, \(totalReasoning) reasoning, \(lineCount) lines")
+        Logger.log("Stream ended: \(chunkCount) chunks, \(totalContent) content, \(totalReasoning) reasoning, \(lineCount) lines", category: "MiniMax")
 
         // Złóż tool_calls
         var toolCalls: [ToolCall] = []
@@ -927,7 +927,7 @@ final class MiniMaxAPIClient {
            let statusCode = baseResp["status_code"] as? Int,
            statusCode != 0 {
             let statusMsg = baseResp["status_msg"] as? String ?? ""
-            print("⚠️ [MiniMax] base_resp=\(statusCode): \(statusMsg)")
+        Logger.log("base_resp=\(statusCode): \(statusMsg)", category: "MiniMax", redact: true, level: .error)
         }
 
         if let choices = obj["choices"] as? [[String: Any]] {
@@ -991,7 +991,7 @@ final class MiniMaxAPIClient {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        print("📡 [MiniMax] Sending non-streaming request…")
+        Logger.log("Sending non-streaming request", category: "MiniMax", redact: true, level: .debug)
 
         let (data, response) = try await session.data(for: request)
 

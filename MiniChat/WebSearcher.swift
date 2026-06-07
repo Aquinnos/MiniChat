@@ -114,7 +114,7 @@ final class WebSearcher {
             pattern: pattern,
             options: [.dotMatchesLineSeparators, .caseInsensitive]
         ) else {
-            print("⚠️ [WebSearch] Nie mogę skompilować regexa")
+            Logger.log("Failed to compile WebSearch regex", category: "WebSearch", level: .error)
             return []
         }
 

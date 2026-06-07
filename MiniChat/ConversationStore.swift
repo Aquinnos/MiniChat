@@ -58,7 +58,7 @@ final class ConversationStore: ObservableObject {
             // Otwórz ostatnio edytowaną
             self.currentConversationId = conversations.first?.id
         } catch {
-            print("ConversationStore load error: \(error)")
+            Logger.log("ConversationStore load error: \(error)", category: "ConversationStore", level: .error)
         }
     }
 
@@ -71,7 +71,7 @@ final class ConversationStore: ObservableObject {
             let data = try encoder.encode(conversations)
             try data.write(to: fileURL, options: .atomic)
         } catch {
-            print("ConversationStore save error: \(error)")
+            Logger.log("ConversationStore save error: \(error)", category: "ConversationStore", level: .error)
         }
     }
 

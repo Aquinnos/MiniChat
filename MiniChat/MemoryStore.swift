@@ -75,7 +75,7 @@ final class MemoryStore: ObservableObject {
             let data = try encoder.encode(facts)
             UserDefaults.standard.set(data, forKey: storageKey)
         } catch {
-            print("❌ [Memory] Save error: \(error)")
+            Logger.log("Memory save error: \(error)", category: "Memory", level: .error)
         }
     }
 
@@ -86,7 +86,7 @@ final class MemoryStore: ObservableObject {
             decoder.dateDecodingStrategy = .iso8601
             facts = try decoder.decode([MemoryFact].self, from: data)
         } catch {
-            print("❌ [Memory] Load error: \(error)")
+            Logger.log("Memory load error: \(error)", category: "Memory", level: .error)
         }
     }
 

@@ -18,7 +18,14 @@ struct Logger {
         case .info: prefix = "ℹ️"
         case .error: prefix = "❌"
         }
-        print("\(prefix) [\(category)] \(msg)")
+        // Map local LogLevel to os.Logger level
+        let osLevel: os.Logger.Level
+        switch level {
+        case .debug: osLevel = .debug
+        case .info: osLevel = .info
+        case .error: osLevel = .error
+        }
+        osLogger.log(level: osLevel, "\(prefix) [\(category)] \(msg)")
     }
 
     private static func redactSensitive(_ s: String) -> String {

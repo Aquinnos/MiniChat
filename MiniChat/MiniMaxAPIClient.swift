@@ -256,6 +256,7 @@ struct GeneratedImage: Codable, Hashable {
 
 // MARK: - API Client
 
+@MainActor
 final class MiniMaxAPIClient {
     // URL API - konfigurowalny w Ustawieniach (niektóre DNS-y nie widzą .io)
     static let defaultBaseURL = "https://api.minimaxi.com/v1/text/chatcompletion_v2"

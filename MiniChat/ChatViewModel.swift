@@ -33,13 +33,14 @@ final class ChatViewModel: ObservableObject {
     init(
         store: ConversationStore,
         modelStore: ModelStore,
-        presetStore: PresetStore = .shared,
-        apiClient: MiniMaxAPIClient = MiniMaxAPIClient()
+        presetStore: PresetStore? = nil,
+        apiClient: MiniMaxAPIClient? = nil
     ) {
         self.store = store
         self.modelStore = modelStore
-        self.presetStore = presetStore
-        self.apiClient = apiClient
+        // Defer creating actor-isolated singletons to body so defaults are evaluated on MainActor
+        self.presetStore = presetStore ?? PresetStore.shared
+        self.apiClient = apiClient ?? MiniMaxAPIClient()
         observeStore()
     }
 

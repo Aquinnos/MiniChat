@@ -8,6 +8,10 @@
 import Foundation
 import os
 
+#if canImport(SwiftSoup)
+import SwiftSoup
+#endif
+
 struct WebSearchResult: Codable {
     let title: String
     let snippet: String
@@ -67,14 +71,29 @@ final class WebSearcher {
         let preview = trimmed.count > 80 ? String(trimmed.prefix(80)) + "..." : trimmed
         Logger.log("DuckDuckGo query preview: \(preview) len=\(trimmed.count)", category: "WebSearch", redact: true)
 
-        // Simple retry once on transient failure
-        var data: Data
-        var response: URLResponse
-        do {
-            (data, response) = try await session.data(for: request)
-        } catch {
-            try await Task.sleep(nanoseconds: 1_000_000_000) // 1s
-            (data, response) = try await session.data(for: request)
+        // Exponential backoff retry (max 3 attempts) for transient network errors
+        var data: Data = Data()
+        var response: URLResponse = URLResponse()
+        var attempt = 0
+        var lastError: Error?
+        let maxAttempts = 3
+        while attempt < maxAttempts {
+            do {
+                (data, response) = try await session.data(for: request)
+                lastError = nil
+                break
+            } catch {
+                lastError = error
+                attempt += 1
+                let backoffSeconds = UInt64(1_000_000_000) * UInt64(1 << (attempt - 1)) // 1s, 2s, 4s
+                // add jitter up to 500ms
+                let jitter = UInt64(Int.random(in: 0...500_000_000))
+                try? await Task.sleep(nanoseconds: backoffSeconds + jitter)
+            }
+        }
+        if let err = lastError {
+            Logger.log("WebSearch fetch failed after \(maxAttempts) attempts: \(err)", category: "WebSearch", redact: true, level: .error)
+            throw WebSearchError.networkError(err.localizedDescription)
         }
 
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
@@ -91,8 +110,12 @@ final class WebSearcher {
 
         // Limit parsed HTML to first 20k characters to reduce regex cost
         let htmlToParse = String(html.prefix(20_000))
+        #if canImport(SwiftSoup)
+        let results = (try? parseWithSwiftSoup(html: htmlToParse, maxResults: maxResults)) ?? parse(html: htmlToParse, maxResults: maxResults)
+        #else
         let results = parse(html: htmlToParse, maxResults: maxResults)
-        Logger.log("WebSearch parsed \(results.count) results", category: "WebSearch")
+        #endif
+        Logger.log("WebSearch parsed \(results.count)    results", category: "WebSearch")
 
         if results.isEmpty {
             throw WebSearchError.noResults
@@ -162,6 +185,32 @@ final class WebSearcher {
 
         return results
     }
+
+    #if canImport(SwiftSoup)
+    private func parseWithSwiftSoup(html: String, maxResults: Int) throws -> [WebSearchResult] {
+        var results: [WebSearchResult] = []
+        let doc = try SwiftSoup.parse(html)
+        let linkSelector = "a.result__a, a.result-link, a.result__a"
+        let snippetSelector = ".result__snippet, .result-snippet"
+        let elements = try doc.select(linkSelector).array()
+        for (i, el) in elements.enumerated() {
+            if i >= maxResults { break }
+            let title = try el.text()
+            let url = try el.attr("href")
+            if url.isEmpty { continue }
+            if url.contains("duckduckgo.com") && !url.contains("redirect") { continue }
+            var snippet = ""
+            if let parent = try? el.parent(), let sn = try? parent.select(snippetSelector).first() {
+                snippet = try sn?.text() ?? ""
+            }
+            if snippet.isEmpty, let sn = try? doc.select(snippetSelector).first() {
+                snippet = try sn?.text() ?? ""
+            }
+            results.append(WebSearchResult(title: title, snippet: snippet, url: url))
+        }
+        return results
+    }
+    #endif
 
     private func extractHref(from tag: String) -> String? {
         // Szukaj href="..." lub href='...'

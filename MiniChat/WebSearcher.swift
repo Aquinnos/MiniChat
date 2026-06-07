@@ -80,7 +80,7 @@ final class WebSearcher {
 
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-            print("❌ [WebSearch] HTTP \(code)")
+            Logger.log("WebSearch HTTP \(code)", category: "WebSearch", redact: true, level: .error)
             throw WebSearchError.networkError("HTTP \(code)")
         }
 
@@ -92,7 +92,8 @@ final class WebSearcher {
 
         // Limit parsed HTML to first 20k characters to reduce regex cost
         let htmlToParse = String(html.prefix(20_000))
-        let results = parse(html: htmlToParse, maxResults: maxResults)        print("✅ [WebSearch] Parsed \(results.count) results")
+        let results = parse(html: htmlToParse, maxResults: maxResults)
+        Logger.log("WebSearch parsed \(results.count) results", category: "WebSearch")
 
         if results.isEmpty {
             throw WebSearchError.noResults

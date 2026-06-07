@@ -16,10 +16,10 @@ struct MiniChatTests {
     }
 
     @Test func test_parseSSEDataFull_parses_tool_calls() async throws {
-        let client = MiniMaxAPIClient()
+        let client = await MainActor.run { MiniMaxAPIClient() }
         let sample = "{"
             + "\"choices\":[{\"delta\":{\"reasoning_content\":\"Thinking...\",\"tool_calls\":[{\"index\":0,\"id\":\"call1\",\"function\":{\"name\":\"web_search\",\"arguments\":\"{\\\"query\\\":\\\"ficus ginseng care\\\"}\"}}]}}]}"
-        let result = client.debug_parseSSEDataFull(sample)
+        let result = await MainActor.run { client.debug_parseSSEDataFull(sample) }
         #expect(result != nil)
         #expect(result?.toolCallsCount == 1)
         #expect(result?.reasoning.contains("Thinking") == true)

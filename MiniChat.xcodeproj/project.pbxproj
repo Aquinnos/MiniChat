@@ -406,6 +406,10 @@
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "MiniChat potrzebuje dostepu do zdjec, aby moc je dolaczac do rozmow i zapisywac wygenerowane obrazy.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "MiniChat uzywa rozpoznawania mowy do dyktowania wiadomosci.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MiniChat uzywa mikrofonu do dyktowania wiadomosci glosowych.";
+				INFOPLIST_KEY_UIBackgroundModes = "processing";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
@@ -450,6 +454,10 @@
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "MiniChat potrzebuje dostepu do zdjec, aby moc je dolaczac do rozmow i zapisywac wygenerowane obrazy.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "MiniChat uzywa rozpoznawania mowy do dyktowania wiadomosci.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MiniChat uzywa mikrofonu do dyktowania wiadomosci glosowych.";
+				INFOPLIST_KEY_UIBackgroundModes = "processing";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;

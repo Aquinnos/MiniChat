@@ -12,6 +12,13 @@ struct OnboardingView: View {
     @State private var isSecure: Bool = true
     @State private var errorMessage: String?
     @Binding var isPresented: Bool
+    /// Callback wywoływany po udanym zapisie klucza (np. do odświeżenia UI rodzica).
+    var onSaved: ((Bool) -> Void)?
+
+    init(isPresented: Binding<Bool>, onSaved: ((Bool) -> Void)? = nil) {
+        self._isPresented = isPresented
+        self.onSaved = onSaved
+    }
 
     var body: some View {
         NavigationStack {
@@ -128,13 +135,22 @@ struct OnboardingView: View {
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             errorMessage = "Wpisz klucz API"
+            onSaved?(false)
+            return
+        }
+        // Podstawowa walidacja formatu - klucz MiniMax to JWT (zaczyna się od eyJ)
+        guard trimmed.hasPrefix("eyJ") else {
+            errorMessage = "Nieprawidlowy format klucza. Klucz MiniMax zaczyna sie od eyJ..."
+            onSaved?(false)
             return
         }
         do {
             try KeychainHelper.save(trimmed)
             isPresented = false
+            onSaved?(true)
         } catch {
             errorMessage = "Nie udało się zapisać: \(error.localizedDescription)"
+            onSaved?(false)
         }
     }
 }

@@ -129,9 +129,6 @@ final class MemoryStore: ObservableObject {
         return sections.joined(separator: "\n\n---\n\n")
     }
 
-    /// Czy są jakieś fakty lub poprzednie rozmowy
-    var hasAny: Bool { !facts.isEmpty }
-
     // MARK: - Helpers
 
     private func formatDate(_ date: Date) -> String {

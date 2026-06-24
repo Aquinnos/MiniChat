@@ -11,7 +11,7 @@ struct ToolsAccessSheet: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var modelStore: ModelStore
     @StateObject private var presetStore = PresetStore.shared
-    @AppStorage("webSearchEnabled") private var webSearchEnabled: Bool = false
+    @AppStorage("webSearchEnabled") private var webSearchEnabled: Bool = true
 
     var body: some View {
         NavigationStack {
@@ -30,7 +30,7 @@ struct ToolsAccessSheet: View {
                     Text("Dostępne narzędzia")
                 } footer: {
                     if let preset = presetStore.selectedPreset {
-                        Text("Aktywny preset: \(preset.emoji) \(preset.name)")
+                        Text("Aktywny preset: \(preset.name)")
                             .font(.caption)
                     } else {
                         Text("Aktywny preset: Domyślny (M3 = wszystkie tools)")

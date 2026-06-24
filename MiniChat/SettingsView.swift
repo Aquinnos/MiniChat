@@ -13,12 +13,30 @@ struct SettingsView: View {
     @StateObject private var memoryStore = MemoryStore.shared
     @State private var apiKey: String = ""
     @State private var isSecure: Bool = true
-    @State private var saveStatus: String?
+    @State private var saveStatus: SaveStatus?
     @State private var apiBaseURL: String = MiniMaxAPIClient.defaultBaseURL
-    @State private var webSearchEnabled: Bool = UserDefaults.standard.bool(forKey: "webSearchEnabled")
+    @State private var webSearchEnabled: Bool = UserDefaults.standard.object(forKey: "webSearchEnabled") as? Bool ?? true
     @State private var exaApiKey: String = ""
     @State private var newFactText: String = ""
     @State private var editingFact: MemoryFact?
+    @State private var showDeleteConfirmation: Bool = false
+
+    enum SaveStatus {
+        case success(String)
+        case failure(String)
+
+        var message: String {
+            switch self {
+            case .success(let msg): return msg
+            case .failure(let msg): return msg
+            }
+        }
+
+        var isSuccess: Bool {
+            if case .success = self { return true }
+            return false
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -194,25 +212,41 @@ struct SettingsView: View {
 
                 if let saveStatus {
                     Section {
-                        Text(saveStatus)
+                        Text(saveStatus.message)
                             .font(.callout)
-                            .foregroundColor(saveStatus.contains("✅") ? .green : .red)
+                            .foregroundColor(saveStatus.isSuccess ? .green : .red)
                     }
                 }
 
                 Section {
                     Button(role: .destructive) {
-                        KeychainHelper.delete()
-                        apiKey = ""
-                        saveStatus = "✅ Usunięto"
+                        showDeleteConfirmation = true
                     } label: {
                         Label("Usuń API key", systemImage: "trash")
                     }
                 }
+                .confirmationDialog(
+                    "Czy na pewno chcesz usunąć klucz API?",
+                    isPresented: $showDeleteConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button("Usuń", role: .destructive) {
+                        KeychainHelper.delete()
+                        apiKey = ""
+                        saveStatus = .success("Usunięto")
+                    }
+                    Button("Anuluj", role: .cancel) {}
+                } message: {
+                    Text("Bez klucza aplikacja nie będzie mogła wysyłać zapytań do API.")
+                }
 
                 Section {
-                    Link(destination: URL(string: "https://platform.minimax.io/user-center/basic-information/interface-key")!) {
-                        Label("Otwórz platform.minimax.io", systemImage: "link")
+                    if let url = URL(string: "https://platform.minimax.io/user-center/basic-information/interface-key") {
+                        Link(destination: url) {
+                            Label("Otwórz platform.minimax.io", systemImage: "link")
+                        }
+                    } else {
+                        Text("platform.minimax.io/user-center/basic-information/interface-key")
                     }
                 } header: {
                     Text("Gdzie pobrać klucz?")
@@ -236,7 +270,7 @@ struct SettingsView: View {
             .onAppear {
                 apiKey = KeychainHelper.read() ?? ""
                 apiBaseURL = UserDefaults.standard.string(forKey: "api_base_url") ?? MiniMaxAPIClient.defaultBaseURL
-            exaApiKey = KeychainHelper.readExa() ?? ""
+                exaApiKey = KeychainHelper.readExa() ?? ""
             }
         }
     }
@@ -245,6 +279,16 @@ struct SettingsView: View {
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedURL = apiBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedExa = exaApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Walidacja URL przed zapisem — musi być poprawny HTTPS
+        guard let url = URL(string: trimmedURL),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "https" || scheme == "http",
+              url.host != nil else {
+            saveStatus = .failure("Nieprawidłowy URL API. Podaj pełny adres zaczynający się od https://")
+            return
+        }
+
         do {
             try KeychainHelper.save(trimmed)
             UserDefaults.standard.set(trimmedURL, forKey: "api_base_url")
@@ -254,12 +298,13 @@ struct SettingsView: View {
             } else {
                 KeychainHelper.deleteExa()
             }
-            saveStatus = "✅ Zapisano"
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            saveStatus = .success("Zapisano")
+            Task {
+                try? await Task.sleep(nanoseconds: 800_000_000)
                 dismiss()
             }
         } catch {
-            saveStatus = "❌ Błąd: \(error.localizedDescription)"
+            saveStatus = .failure("Błąd: \(error.localizedDescription)")
         }
     }
 

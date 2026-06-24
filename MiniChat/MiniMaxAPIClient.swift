@@ -48,7 +48,7 @@ enum MiniMaxModel: String, CaseIterable, Identifiable, Codable {
 
     var description: String {
         switch self {
-        case .m3: return "Flagowy — kod, agenci, 1M kontekst, 📎 obrazy i pliki"
+        case .m3: return "Flagowy — kod, agenci, 1M kontekst, obrazy i pliki"
         case .m27: return "Poprzedni flagowy, dobry do złożonych zadań"
         case .m27Highspeed: return "M2.7 zoptymalizowany pod szybkość"
         case .m2: return "Stabilny, sprawdzony model"
@@ -227,13 +227,13 @@ enum MiniMaxTool {
         "type": "function",
         "function": [
             "name": "read_file",
-            "description": "Reads the TEXT content of a file previously attached to the conversation by the user. Use this to access the contents of attached documents, code files, CSVs, JSONs, logs, configuration files, etc. The file is identified by its filename (visible in the user message as 📎 filename). For binary files (images, PDFs) that were already shown to you as attachments, you do NOT need this tool - their content is already in your context.",
+            "description": "Reads the TEXT content of a file previously attached to the conversation by the user. Use this to access the contents of attached documents, code files, CSVs, JSONs, logs, configuration files, etc. The file is identified by its filename (visible in the user message). For binary files (images, PDFs) that were already shown to you as attachments, you do NOT need this tool - their content is already in your context.",
             "parameters": [
                 "type": "object",
                 "properties": [
                     "file_name": [
                         "type": "string",
-                        "description": "The exact filename of the attached file to read (including extension), e.g. 'main.swift', 'data.csv', 'config.json'. Match the filename shown next to the 📎 emoji in the user message."
+                        "description": "The exact filename of the attached file to read (including extension), e.g. 'main.swift', 'data.csv', 'config.json'. Match the filename shown next to the file attachment marker in the user message."
                     ],
                     "max_chars": [
                         "type": "integer",
@@ -248,10 +248,18 @@ enum MiniMaxTool {
 
 // MARK: - Image tool result (wewnętrzny)
 
-struct GeneratedImage: Codable, Hashable {
+struct GeneratedImage: Codable, Hashable, Identifiable {
+    let id: UUID
     let base64Data: String
     let mimeType: String
     let prompt: String
+
+    init(id: UUID = UUID(), base64Data: String, mimeType: String, prompt: String) {
+        self.id = id
+        self.base64Data = base64Data
+        self.mimeType = mimeType
+        self.prompt = prompt
+    }
 }
 
 // MARK: - API Client
@@ -368,7 +376,7 @@ final class MiniMaxAPIClient {
 
         // PIERWSZY REQUEST
         // Jeśli tools włączone, BUFORUJ content (nie yieluj od razu) - zobaczymy czy były tool_calls
-        // Jeśli były - pokażemy reasoning + "🔍/🎨" + drugi stream (odpowiedź)
+        // Jeśli były - pokażemy reasoning + marker toola + drugi stream (odpowiedź)
         // Jeśli nie - pokażemy zebrany content normalnie
         let shouldBuffer = !tools.isEmpty
         let (firstResponse, firstFinishReason, firstToolCalls) = try await performSingleStream(
@@ -548,7 +556,7 @@ final class MiniMaxAPIClient {
                 let tzName = TimeZone.current.identifier
                 result = "\(f.string(from: now)) (strefa: \(tzName))"
             }
-            return ToolExecutionResult(textResult: "🕐 \(result)", images: [])
+            return ToolExecutionResult(textResult: "[CZAS] \(result)", images: [])
 
         case "read_file":
             guard let fileName = args["file_name"] as? String else {
@@ -561,27 +569,27 @@ final class MiniMaxAPIClient {
             guard let attachment = attachments.first(where: { $0.fileName == fileName }) else {
                 let available = attachments.map { $0.fileName }.joined(separator: ", ")
                 let availMsg = available.isEmpty ? "Brak załączonych plików w konwersacji." : "Dostępne pliki: \(available)"
-                return ToolExecutionResult(textResult: "❌ Nie znaleziono pliku '\(fileName)'. \(availMsg)", images: [])
+                return ToolExecutionResult(textResult: "Nie znaleziono pliku '\(fileName)'. \(availMsg)", images: [])
             }
             guard let base64 = attachment.base64Data, let data = Data(base64Encoded: base64) else {
-                return ToolExecutionResult(textResult: "❌ Nie można odczytać danych pliku '\(fileName)'", images: [])
+                return ToolExecutionResult(textResult: "Nie można odczytać danych pliku '\(fileName)'", images: [])
             }
             // Sprawdź czy to tekst
             guard let text = String(data: data, encoding: .utf8) else {
                 let mime = attachment.mimeType
-                return ToolExecutionResult(textResult: "📄 Plik '\(fileName)' (\(data.count) bajtów, \(mime)) nie jest tekstem UTF-8. Nie można wyświetlić zawartości.", images: [])
+                return ToolExecutionResult(textResult: "Plik '\(fileName)' (\(data.count) bajtów, \(mime)) nie jest tekstem UTF-8. Nie można wyświetlić zawartości.", images: [])
             }
             // Zwróć preview
             let total = text.count
             if total > maxChars {
                 let preview = String(text.prefix(maxChars))
                 return ToolExecutionResult(
-                    textResult: "📄 \(fileName) — \(total) znaków (pokazano pierwsze \(maxChars)):\n\n```\n\(preview)\n... (obcięto, \(total - maxChars) znaków zostało)\n```",
+                    textResult: "Plik \(fileName) — \(total) znaków (pokazano pierwsze \(maxChars)):\n\n```\n\(preview)\n... (obcięto, \(total - maxChars) znaków zostało)\n```",
                     images: []
                 )
             }
             return ToolExecutionResult(
-                textResult: "📄 \(fileName) — \(total) znaków:\n\n```\n\(text)\n```",
+                textResult: "Plik \(fileName) — \(total) znaków:\n\n```\n\(text)\n```",
                 images: []
             )
 
@@ -594,21 +602,21 @@ final class MiniMaxAPIClient {
     private func displayMessageForTool(_ toolCall: ToolCall, result: ToolExecutionResult) -> String {
         switch toolCall.function.name {
         case "web_search":
-            return "🔍 Szukam: \(extractQueryFromArgs(toolCall.function.arguments))\n\n"
+            return "Szukam: \(extractQueryFromArgs(toolCall.function.arguments))\n\n"
         case "generate_image":
             if !result.images.isEmpty {
-                return "🎨 Generuję obraz...\n\n"
+                return "Generuję obraz...\n\n"
             }
             return ""
         case "get_current_time":
-            return "🕐 Pobieram czas...\n\n"
+            return "Pobieram czas...\n\n"
         case "read_file":
             if let data = toolCall.function.arguments.data(using: .utf8),
                let args = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let name = args["file_name"] as? String {
-                return "📂 Czytam plik: \(name)\n\n"
+                return "Czytam plik: \(name)\n\n"
             }
-            return "📂 Czytam plik...\n\n"
+            return "Czytam plik...\n\n"
         default:
             return ""
         }
@@ -840,7 +848,7 @@ final class MiniMaxAPIClient {
                         appendToFirstText(&contentArray, text: fileDesc, originalContent: msg.content)
                     } else if att.base64Data != nil {
                         // Plik binarny (PDF, DOCX, PPTX, XLSX, image dla non-M3) bez tekstu
-                        let fileInfo = "\n\n📎 Załączony plik: \(att.fileName) (typ: \(att.mimeType)). Użyj narzędzia read_file(file_name=\"\(att.fileName)\") żeby odczytać jego zawartość."
+                        let fileInfo = "\n\nZałączony plik: \(att.fileName) (typ: \(att.mimeType)). Użyj narzędzia read_file(file_name=\"\(att.fileName)\") żeby odczytać jego zawartość."
                         appendToFirstText(&contentArray, text: fileInfo, originalContent: msg.content)
                     }
                 }
@@ -915,8 +923,12 @@ final class MiniMaxAPIClient {
     #endif
 
     private func parseSSELine(_ json: String) -> StreamChunk? {
-        guard let data = json.data(using: .utf8) else { return nil }
+        guard let data = json.data(using: .utf8) else {
+            Logger.log("parseSSELine: nie udało się zdekodować UTF-8", category: "MiniMax", level: .debug)
+            return nil
+        }
         guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            Logger.log("parseSSELine: nieprawidłowy JSON (len=\(json.count))", category: "MiniMax", level: .debug)
             return nil
         }
 

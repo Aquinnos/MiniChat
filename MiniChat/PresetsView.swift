@@ -22,8 +22,10 @@ struct PresetsView: View {
                         presetStore.selectPreset(nil)
                     } label: {
                         HStack {
-                            Text("💬")
-                                .font(.title2)
+                            Image(systemName: "bubble.left.and.bubble.right")
+                                .font(.title3)
+                                .foregroundColor(Theme.blue)
+                                .frame(width: 32)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Domyślny")
                                     .font(.body.bold())
@@ -48,8 +50,10 @@ struct PresetsView: View {
                             presetStore.selectPreset(preset)
                         } label: {
                             HStack(spacing: 12) {
-                                Text(preset.emoji)
-                                    .font(.title2)
+                                Image(systemName: "square.stack.3d.up")
+                                    .font(.title3)
+                                    .foregroundColor(Theme.gold)
+                                    .frame(width: 32)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(preset.name)
                                         .font(.body.bold())
@@ -62,7 +66,7 @@ struct PresetsView: View {
                                             .background(Theme.blue.opacity(0.15))
                                             .foregroundColor(Theme.blue)
                                             .clipShape(Capsule())
-                                        Text("🌡 \(String(format: "%.1f", preset.temperature))")
+                                        Text("temp \(String(format: "%.1f", preset.temperature))")
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
                                         if !preset.allowedTools.isEmpty {
@@ -146,10 +150,8 @@ struct PresetEditorView: View {
             Form {
                 Section("Nazwa i ikona") {
                     HStack {
-                        TextField("Emoji", text: $preset.emoji)
-                            .frame(width: 60)
-                            .multilineTextAlignment(.center)
-                            .font(.title)
+                        Image(systemName: "tag")
+                            .foregroundColor(Theme.gold)
                         TextField("Nazwa", text: $preset.name)
                     }
                 }

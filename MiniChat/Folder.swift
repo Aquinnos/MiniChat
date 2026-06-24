@@ -18,7 +18,7 @@ struct Folder: Identifiable, Codable, Hashable {
     init(
         id: UUID = UUID(),
         name: String,
-        emoji: String = "📁",
+        emoji: String = "",
         colorHex: String = "#FFD700",
         createdAt: Date = Date()
     ) {

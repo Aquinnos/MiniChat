@@ -33,8 +33,13 @@ struct ModelPickerView: View {
                                             .font(.headline)
                                             .foregroundColor(Theme.textPrimary)
                                         if model.isReasoning {
-                                            Text("🧠")
-                                                .font(.caption)
+                                            Text("[reasoning]")
+                                                .font(.caption2)
+                                                .padding(.horizontal, 5)
+                                                .padding(.vertical, 1)
+                                                .background(Theme.gold.opacity(0.15))
+                                                .foregroundColor(Theme.gold)
+                                                .clipShape(Capsule())
                                         }
                                         Spacer()
                                         if model == selectedModel {
@@ -56,7 +61,7 @@ struct ModelPickerView: View {
                 } header: {
                     Text("Model AI")
                 } footer: {
-                    Text("Modele z 🧠 to reasoning models — najpierw pokażą swoje rozważania, a potem odpowiedź.")
+                    Text("Modele oznaczone [reasoning] to reasoning models — najpierw pokażą swoje rozważania, a potem odpowiedź.")
                         .font(.caption)
                 }
             }

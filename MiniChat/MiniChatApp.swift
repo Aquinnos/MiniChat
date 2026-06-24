@@ -61,6 +61,14 @@ struct MiniChatApp: App {
                     }
                 }
             }
+            .task {
+                // Prośba o pozwolenie na notyfikacje (raz, przy starcie)
+                await NotificationManager.shared.requestAuthorizationIfNeeded()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .openConversationRequested)) { notification in
+                guard let convId = notification.userInfo?["conversationId"] as? UUID else { return }
+                store.switchToConversation(id: convId)
+            }
         }
     }
 

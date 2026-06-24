@@ -55,7 +55,7 @@ struct ImageGenSheet: View {
                                 ProgressView()
                                     .scaleEffect(0.8)
                             }
-                            Text(isGenerating ? "Generuję..." : "🎨 Generuj obraz")
+                            Text(isGenerating ? "Generuję..." : "Generuj obraz")
                                 .frame(maxWidth: .infinity)
                         }
                     }

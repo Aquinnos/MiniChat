@@ -67,6 +67,27 @@ struct Message: Identifiable, Codable, Hashable {
     var images: [GeneratedImage]?
     let timestamp: Date
 
+    // Hash z dokładnością do sekundy (timestamp.nanosecond różni się między wiadomościami
+    // nawet jeśli user ich nie rozróżnia). Bez tego dwa wiadomości utworzone w odstępie 1ns
+    // miałyby różne hashe, co jest szumem.
+    static func == (lhs: Message, rhs: Message) -> Bool {
+        lhs.id == rhs.id
+            && lhs.role == rhs.role
+            && lhs.content == rhs.content
+            && lhs.reasoningContent == rhs.reasoningContent
+            && lhs.attachments == rhs.attachments
+            && lhs.images == rhs.images
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(role)
+        hasher.combine(content)
+        hasher.combine(reasoningContent)
+        hasher.combine(attachments)
+        hasher.combine(images)
+    }
+
     init(
         id: UUID = UUID(),
         role: Role,
@@ -165,6 +186,9 @@ struct Conversation: Identifiable, Codable, Hashable {
         self.folderId = try? c.decode(UUID.self, forKey: .folderId)
     }
 
+    /// Maksymalna długość automatycznie generowanego tytułu
+    static let maxAutoTitleLength = 40
+
     mutating func generateTitleIfNeeded() {
         guard title == "Nowa rozmowa",
               let firstUserMessage = messages.first(where: { $0.role == .user }) else {
@@ -172,7 +196,52 @@ struct Conversation: Identifiable, Codable, Hashable {
         }
         let trimmed = firstUserMessage.content
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        title = String(trimmed.prefix(40))
-        if trimmed.count > 40 { title += "…" }
+        title = String(trimmed.prefix(Self.maxAutoTitleLength))
+        if trimmed.count > Self.maxAutoTitleLength { title += "…" }
     }
+}
+
+// MARK: - ConversationStats
+
+/// Statystyki wyliczane lokalnie z kolekcji konwersacji (do widoku Insights).
+struct ConversationStats: Equatable {
+    let totalConversations: Int
+    let totalMessages: Int
+    let totalTags: Int
+    let topTags: [TagCount]
+    let longestConversation: ConversationLength?
+    let dailyActivity: [DailyActivity]
+    let totalCharacters: Int
+
+    struct TagCount: Equatable, Identifiable {
+        var id: String { tag }
+        let tag: String
+        let count: Int
+    }
+
+    struct ConversationLength: Equatable, Identifiable {
+        var id: UUID { conversationId }
+        let conversationId: UUID
+        let title: String
+        let messageCount: Int
+    }
+
+    struct DailyActivity: Equatable, Identifiable {
+        var id: Date { date }
+        let date: Date
+        let count: Int
+    }
+
+    static let empty = ConversationStats(
+        totalConversations: 0,
+        totalMessages: 0,
+        totalTags: 0,
+        topTags: [],
+        longestConversation: nil,
+        dailyActivity: [],
+        totalCharacters: 0
+    )
+
+    /// Szacunkowa liczba tokenów (chars/4 - przybliżenie dla LLM).
+    var estimatedTokens: Int { totalCharacters / 4 }
 }

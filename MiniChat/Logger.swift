@@ -14,9 +14,9 @@ struct Logger {
         let msg = redact ? redactSensitive(message) : message
         let prefix: String
         switch level {
-        case .debug: prefix = "🔍"
-        case .info: prefix = "ℹ️"
-        case .error: prefix = "❌"
+        case .debug: prefix = "[DEBUG]"
+        case .info: prefix = "[INFO]"
+        case .error: prefix = "[ERROR]"
         }
         // Use os.Logger convenience methods for level
         switch level {

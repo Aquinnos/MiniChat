@@ -27,8 +27,9 @@ struct FoldersView: View {
                                     .fill(folder.color)
                                     .frame(width: 32, height: 32)
                                     .overlay(
-                                        Text(folder.emoji)
-                                            .font(.system(size: 16))
+                                        Image(systemName: "folder.fill")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(.white)
                                     )
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(folder.name)
@@ -106,14 +107,8 @@ struct FolderEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Nazwa i ikona") {
-                    HStack {
-                        TextField("Emoji", text: $folder.emoji)
-                            .frame(width: 60)
-                            .multilineTextAlignment(.center)
-                            .font(.title)
-                        TextField("Nazwa folderu", text: $folder.name)
-                    }
+                Section("Nazwa") {
+                    TextField("Nazwa folderu", text: $folder.name)
                 }
 
                 Section {
@@ -209,8 +204,9 @@ struct FolderPickerSheet: View {
                                 .fill(folder.color)
                                 .frame(width: 28, height: 28)
                                 .overlay(
-                                    Text(folder.emoji)
-                                        .font(.system(size: 14))
+                                    Image(systemName: "folder.fill")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.white)
                                 )
                             Text(folder.name)
                                 .foregroundColor(Theme.textPrimary)

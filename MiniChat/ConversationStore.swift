@@ -19,6 +19,18 @@ final class ConversationStore: ObservableObject {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         self.fileURL = docs.appendingPathComponent("conversations.json")
         load()
+        excludeFromBackup()
+    }
+
+    private func excludeFromBackup() {
+        var url = fileURL
+        var resourceValues = URLResourceValues()
+        resourceValues.isExcludedFromBackup = true
+        do {
+            try url.setResourceValues(resourceValues)
+        } catch {
+            Logger.log("Nie udało się wyłączyć backupu iCloud: \(error)", category: "ConversationStore", level: .error)
+        }
     }
 
     var currentConversation: Conversation? {
@@ -44,6 +56,13 @@ final class ConversationStore: ObservableObject {
         currentConversationId = new.id
         save()
         return new
+    }
+
+    /// Przełącza aktywną rozmowę na podaną (np. z deep-linku z notyfikacji).
+    /// No-op jeśli rozmowa nie istnieje.
+    func switchToConversation(id: UUID) {
+        guard conversations.contains(where: { $0.id == id }) else { return }
+        currentConversationId = id
     }
 
     /// Tworzy fork konwersacji: nową rozmowę zawierającą wiadomości do podanej (inclusive)
@@ -110,11 +129,11 @@ final class ConversationStore: ObservableObject {
         save()
     }
 
-    /// Ustawia folder konwersacji (helper dla FolderStore)
+    /// Ustawia folder konwersacji (helper dla FolderStore).
+    /// Operacja czysto organizacyjna - nie zmienia updatedAt.
     func setFolder(_ folderId: UUID?, for conversation: Conversation) {
         if let idx = conversations.firstIndex(where: { $0.id == conversation.id }) {
             conversations[idx].folderId = folderId
-            conversations[idx].updatedAt = Date()
             save()
         }
     }
@@ -133,44 +152,40 @@ final class ConversationStore: ObservableObject {
 
     // MARK: - Pin / Unpin
 
-    /// Przełącza przypięcie konwersacji
+    /// Przełącza przypięcie konwersacji. Operacja czysto organizacyjna - nie zmienia updatedAt.
     func togglePin(_ conversation: Conversation) {
         if let idx = conversations.firstIndex(where: { $0.id == conversation.id }) {
             conversations[idx].isPinned.toggle()
-            conversations[idx].updatedAt = Date()
             save()
         }
     }
 
     // MARK: - Tags
 
-    /// Ustawia tagi dla konwersacji (zastępuje istniejące)
+    /// Ustawia tagi dla konwersacji (zastępuje istniejące). Operacja czysto organizacyjna.
     func setTags(_ tags: [String], for conversation: Conversation) {
         if let idx = conversations.firstIndex(where: { $0.id == conversation.id }) {
             conversations[idx].tags = tags
-            conversations[idx].updatedAt = Date()
             save()
         }
     }
 
-    /// Dodaje tag (idempotent - jeśli już jest, nie duplikuje)
+    /// Dodaje tag (idempotent - jeśli już jest, nie duplikuje). Operacja czysto organizacyjna.
     func addTag(_ tag: String, to conversation: Conversation) {
         let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !trimmed.isEmpty else { return }
         if let idx = conversations.firstIndex(where: { $0.id == conversation.id }) {
             if !conversations[idx].tags.contains(trimmed) {
                 conversations[idx].tags.append(trimmed)
-                conversations[idx].updatedAt = Date()
                 save()
             }
         }
     }
 
-    /// Usuwa tag
+    /// Usuwa tag. Operacja czysto organizacyjna.
     func removeTag(_ tag: String, from conversation: Conversation) {
         if let idx = conversations.firstIndex(where: { $0.id == conversation.id }) {
             conversations[idx].tags.removeAll { $0 == tag }
-            conversations[idx].updatedAt = Date()
             save()
         }
     }
@@ -179,6 +194,73 @@ final class ConversationStore: ObservableObject {
     var allTags: [String] {
         let set = Set(conversations.flatMap { $0.tags })
         return Array(set).sorted()
+    }
+
+    // MARK: - Stats
+
+    /// Wylicza statystyki ze wszystkich konwersacji (top tagi, najdłuższa rozmowa,
+    /// dzienna aktywność z ostatnich 30 dni, łączne znaki).
+    var stats: ConversationStats {
+        guard !conversations.isEmpty else { return .empty }
+
+        let totalMessages = conversations.reduce(0) { $0 + $1.messages.count }
+        let totalCharacters = conversations.reduce(0) { acc, conv in
+            acc + conv.messages.reduce(0) { $0 + $1.content.count }
+        }
+
+        // Top tagi
+        var tagCounts: [String: Int] = [:]
+        for conv in conversations {
+            for tag in conv.tags {
+                tagCounts[tag, default: 0] += 1
+            }
+        }
+        let topTags = tagCounts
+            .map { ConversationStats.TagCount(tag: $0.key, count: $0.value) }
+            .sorted { $0.count > $1.count }
+            .prefix(5)
+            .map { $0 }
+
+        // Najdłuższa rozmowa
+        let longest = conversations
+            .map { (conv: $0, count: $0.messages.count) }
+            .max(by: { $0.count < $1.count })
+        let longestConv: ConversationStats.ConversationLength? = longest.map {
+            ConversationStats.ConversationLength(
+                conversationId: $0.conv.id,
+                title: $0.conv.title,
+                messageCount: $0.count
+            )
+        }
+
+        // Dzienna aktywność z ostatnich 30 dni
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        var dailyBuckets: [Date: Int] = [:]
+        for offset in 0..<30 {
+            if let day = calendar.date(byAdding: .day, value: -offset, to: today) {
+                dailyBuckets[day] = 0
+            }
+        }
+        for conv in conversations {
+            let day = calendar.startOfDay(for: conv.updatedAt)
+            if dailyBuckets[day] != nil {
+                dailyBuckets[day, default: 0] += 1
+            }
+        }
+        let daily = dailyBuckets
+            .map { ConversationStats.DailyActivity(date: $0.key, count: $0.value) }
+            .sorted { $0.date < $1.date }
+
+        return ConversationStats(
+            totalConversations: conversations.count,
+            totalMessages: totalMessages,
+            totalTags: tagCounts.count,
+            topTags: topTags,
+            longestConversation: longestConv,
+            dailyActivity: daily,
+            totalCharacters: totalCharacters
+        )
     }
 
     // MARK: - Search

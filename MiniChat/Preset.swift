@@ -21,7 +21,7 @@ struct Preset: Identifiable, Codable, Hashable {
     init(
         id: UUID = UUID(),
         name: String,
-        emoji: String = "🎭",
+        emoji: String = "",
         systemPrompt: String = "",
         allowedTools: Set<ToolName> = [],
         model: MiniMaxModel = .m3,
@@ -68,7 +68,7 @@ enum ToolName: String, Codable, CaseIterable, Hashable {
 enum BuiltInPresets {
     static let codeReviewer = Preset(
         name: "Code Reviewer",
-        emoji: "🔍",
+        emoji: "",
         systemPrompt: """
         Jesteś doświadczonym Senior iOS Reviewerem. Twoje zadanie:
         - Przeglądaj kod Swift/SwiftUI pod kątem bugów, bezpieczeństwa, wydajności
@@ -84,7 +84,7 @@ enum BuiltInPresets {
 
     static let bugHunter = Preset(
         name: "Bug Hunter",
-        emoji: "🐛",
+        emoji: "",
         systemPrompt: """
         Jesteś ekspertem od debugowania. Gdy dostajesz kod lub opis buga:
         1. Zadaj 2-3 pytania o symptom (kiedy, gdzie, jak często)
@@ -100,7 +100,7 @@ enum BuiltInPresets {
 
     static let translator = Preset(
         name: "Translator",
-        emoji: "🌐",
+        emoji: "",
         systemPrompt: """
         Jesteś profesjonalnym tłumaczem. Zasady:
         - Tłumacz ZAWSZE dokładnie, nie parafrazuj
@@ -116,7 +116,7 @@ enum BuiltInPresets {
 
     static let apiDesigner = Preset(
         name: "API Designer",
-        emoji: "🔌",
+        emoji: "",
         systemPrompt: """
         Projektant REST/GraphQL APIs. Zasady:
         - RESTful conventions (plural nouns, kebab-case w URLs)

@@ -21,7 +21,7 @@ final class FolderStore: ObservableObject {
         // Pierwszy setup: utwórz "Ogólne" jeśli brak
         if folders.isEmpty {
             folders = [
-                Folder(name: "Ogólne", emoji: "💬", colorHex: "#5856D6")
+                Folder(name: "Ogólne", emoji: "", colorHex: "#5856D6")
             ]
             save()
         }

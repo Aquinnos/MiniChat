@@ -24,7 +24,7 @@ struct SplashView: View {
             .ignoresSafeArea()
 
             VStack(spacing: 24) {
-                // Logo - kółko z 🧠 i efektem pulse
+                // Logo - kółko z "AI" i efektem pulse
                 ZStack {
                     // Zewnętrzny pierścień (animowany)
                     Circle()
@@ -38,7 +38,7 @@ struct SplashView: View {
                             value: pulseDot
                         )
 
-                    // Wewnętrzne kółko z emoji
+                    // Wewnętrzne kółko z napisem
                     Circle()
                         .fill(
                             LinearGradient(
@@ -50,8 +50,9 @@ struct SplashView: View {
                         .frame(width: 110, height: 110)
                         .shadow(color: Theme.gold.opacity(0.4), radius: 12, x: 0, y: 4)
 
-                    Text("🧠")
-                        .font(.system(size: 56))
+                    Text("AI")
+                        .font(.system(size: 44, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
                         .scaleEffect(pulseDot ? 1.05 : 1.0)
                         .animation(
                             .easeInOut(duration: 1.0)

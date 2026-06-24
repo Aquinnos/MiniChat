@@ -27,8 +27,11 @@ final class ChatViewModel: ObservableObject {
     private var streamTask: Task<Void, Never>?
     private var storeObserver: AnyCancellable?
     private var lastChunkTime: Date = .distantPast
+    private var lastSendTime: Date = .distantPast
     /// Minimalny interwał między updateami UI podczas streamingu (żeby było widać "pisanie")
     private let streamThrottleInterval: TimeInterval = 0.016  // 16ms = 60 FPS, płynne pisanie
+    /// Minimalny interwał między wysyłkami (ochrona przed spamowaniem API i kosztami)
+    private let minimumSendInterval: TimeInterval = 0.5
 
     init(
         store: ConversationStore,
@@ -91,6 +94,13 @@ final class ChatViewModel: ObservableObject {
 
     /// Wysyła wiadomość użytkownika wraz z załącznikami.
     func send() async {
+        // Rate limit: nie pozwól na spam (ochrona kosztów API)
+        let now = Date()
+        guard now.timeIntervalSince(lastSendTime) >= minimumSendInterval else {
+            Logger.log("Send rate-limited", category: "ChatViewModel", level: .debug)
+            return
+        }
+
         let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         let hasAttachments = !pendingAttachments.isEmpty
         guard (!trimmed.isEmpty || hasAttachments), !isStreaming else { return }
@@ -120,6 +130,7 @@ final class ChatViewModel: ObservableObject {
 
         inputText = ""
         pendingAttachments.removeAll()
+        lastSendTime = Date()
 
         await streamResponse()
     }
@@ -130,6 +141,10 @@ final class ChatViewModel: ObservableObject {
         isStreaming = false
         isThinking = false
         isPreparingResponse = false
+        BackgroundTaskManager.shared.endTask()
+        if let convId = store.currentConversationId {
+            NotificationManager.shared.clearNotification(conversationId: convId)
+        }
     }
 
     private func streamResponse() async {
@@ -148,6 +163,12 @@ final class ChatViewModel: ObservableObject {
         isPreparingResponse = true
         isThinking = selectedModel.isReasoning
         errorMessage = nil
+
+        // Background task: ~30s dodatkowego czasu po uśpieniu apki,
+        // żeby streaming dokończył się i mógł odpalić notyfikację.
+        let convId = conversation.id
+        let convTitle = conversation.title
+        BackgroundTaskManager.shared.beginTask(name: "ChatStreaming")
 
         // Wstrzykuj pamięć długoterminową + listę poprzednich rozmów jako system message
         let previousConversations = store.conversations
@@ -180,21 +201,20 @@ final class ChatViewModel: ObservableObject {
         // 4) Właściwa konwersacja
         allMessages.append(contentsOf: conversation.messages.filter { $0.role != .system })
 
-        streamTask = Task {
+        streamTask = Task { @MainActor in
             do {
                 // Jeśli preset ma własne tools - używamy ich (override)
                 // W przeciwnym razie - WSZYSTKIE modele dostają 4 domyślne tools
                 // (web_search, generate_image, get_current_time, read_file)
                 // - M3: ma natywny web search
                 // - Inne: client-side tool loop (my wykonujemy search/image gen)
+                // Web search toggle z UI: wyłączenie = żadnych narzędzi (chyba że preset ma override)
                 let webSearchEnabled = UserDefaults.standard.object(forKey: "webSearchEnabled") as? Bool ?? true
                 let enableTools: Bool
                 if toolsOverride != nil {
                     enableTools = false  // używamy override zamiast domyślnych
                 } else {
-                    // Domyślnie ON dla wszystkich modeli
-                    enableTools = true
-                    _ = webSearchEnabled  // zachowane dla potencjalnego toggle
+                    enableTools = webSearchEnabled
                 }
 
                 let stream = apiClient.streamChatCompletion(
@@ -210,36 +230,53 @@ final class ChatViewModel: ObservableObject {
                     await appendChunk(chunk)
                 }
 
-                await MainActor.run {
-                    self.isStreaming = false
-                    self.isThinking = false
-                    self.isPreparingResponse = false
-                    if var conv = self.store.currentConversation {
-                        conv.updatedAt = Date()
-                        self.store.currentConversation = conv
-                    }
+                self.isStreaming = false
+                self.isThinking = false
+                self.isPreparingResponse = false
+                if var conv = self.store.currentConversation {
+                    conv.updatedAt = Date()
+                    self.store.currentConversation = conv
                 }
+                self.finalizeStreaming(conversationId: convId, conversationTitle: convTitle)
             } catch is CancellationError {
-                await MainActor.run {
-                    self.isStreaming = false
-                    self.isThinking = false
-                    self.isPreparingResponse = false
-                }
+                self.isStreaming = false
+                self.isThinking = false
+                self.isPreparingResponse = false
+                BackgroundTaskManager.shared.endTask()
+                NotificationManager.shared.clearNotification(conversationId: convId)
             } catch {
-                await MainActor.run {
-                    self.isStreaming = false
-                    self.isThinking = false
-                    self.isPreparingResponse = false
-                    if let apiErr = error as? APIError {
-                        self.errorMessage = apiErr.errorDescription
-                    } else {
-                        self.errorMessage = error.localizedDescription
-                    }
+                self.isStreaming = false
+                self.isThinking = false
+                self.isPreparingResponse = false
+                BackgroundTaskManager.shared.endTask()
+                NotificationManager.shared.clearNotification(conversationId: convId)
+                if let apiErr = error as? APIError {
+                    self.errorMessage = apiErr.errorDescription
+                } else {
+                    self.errorMessage = error.localizedDescription
                 }
             }
         }
+    }
 
-        await streamTask?.value
+    /// Kończy streaming: zamyka background task, odpala notyfikację z snippetem odpowiedzi.
+    private func finalizeStreaming(conversationId: UUID, conversationTitle: String) {
+        BackgroundTaskManager.shared.endTask()
+        NotificationManager.shared.clearNotification(conversationId: conversationId)
+
+        let snippet = store.conversations
+            .first(where: { $0.id == conversationId })?
+            .messages
+            .last(where: { $0.role == .assistant })?
+            .content
+            ?? ""
+
+        guard !snippet.isEmpty else { return }
+        NotificationManager.shared.postResponseNotification(
+            conversationId: conversationId,
+            conversationTitle: conversationTitle,
+            snippet: TextCleaning.clean(snippet)
+        )
     }
 
     private func appendChunk(_ chunk: StreamChunk) async {
@@ -283,12 +320,6 @@ final class ChatViewModel: ObservableObject {
         store.createNewConversation()
         pendingAttachments.removeAll()
         errorMessage = nil
-        objectWillChange.send()
-    }
-
-    /// Wymusza odświeżenie widoku
-    func refresh() {
-        objectWillChange.send()
     }
 
     func clearError() {
@@ -313,7 +344,7 @@ final class ChatViewModel: ObservableObject {
 
         // Dodaj prompt usera jako wiadomość
         guard var conversation = store.currentConversation else { return }
-        conversation.messages.append(Message(role: .user, content: "🎨 \(prompt)"))
+        conversation.messages.append(Message(role: .user, content: prompt))
         conversation.updatedAt = Date()
 
         // Dodaj placeholder asystenta z markerem "generuję"
@@ -369,7 +400,7 @@ final class ChatViewModel: ObservableObject {
                 conv.messages[lastIdx] = Message(
                     id: conv.messages[lastIdx].id,
                     role: .assistant,
-                    content: "❌ Nie udało się wygenerować obrazu: \(error.localizedDescription)",
+                    content: "Nie udało się wygenerować obrazu: \(error.localizedDescription)",
                     reasoningContent: nil,
                     attachments: [],
                     images: [],
@@ -418,7 +449,6 @@ final class ChatViewModel: ObservableObject {
         conversation.updatedAt = Date()
         conversation.generateTitleIfNeeded()
         store.currentConversation = conversation
-        objectWillChange.send()
 
         await streamResponse()
     }
@@ -442,7 +472,6 @@ final class ChatViewModel: ObservableObject {
         // Usuń wiadomość asystenta
         conversation.messages.remove(at: asstIdx)
         store.currentConversation = conversation
-        objectWillChange.send()
 
         // Jeśli był user message przed, wyślij ponownie
         if userMessage != nil {
@@ -462,7 +491,6 @@ final class ChatViewModel: ObservableObject {
             conversation.messages.removeSubrange(idx...)
         }
         store.currentConversation = conversation
-        objectWillChange.send()
     }
 
     /// Fork: tworzy nową konwersację skopiowaną ze wszystkich wiadomości do podanej (inclusive)

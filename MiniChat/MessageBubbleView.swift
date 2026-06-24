@@ -16,6 +16,7 @@ struct MessageBubbleView: View {
     let onEdit: ((Message) -> Void)?
     let onDelete: ((Message) -> Void)?
     let onRegenerate: ((Message) -> Void)?
+    let onFork: ((Message) -> Void)?
 
     @State private var showReasoning: Bool = false
 
@@ -26,7 +27,8 @@ struct MessageBubbleView: View {
         isPreparing: Bool = false,
         onEdit: ((Message) -> Void)? = nil,
         onDelete: ((Message) -> Void)? = nil,
-        onRegenerate: ((Message) -> Void)? = nil
+        onRegenerate: ((Message) -> Void)? = nil,
+        onFork: ((Message) -> Void)? = nil
     ) {
         self.message = message
         self.isStreaming = isStreaming
@@ -35,6 +37,7 @@ struct MessageBubbleView: View {
         self.onEdit = onEdit
         self.onDelete = onDelete
         self.onRegenerate = onRegenerate
+        self.onFork = onFork
     }
 
     var body: some View {
@@ -109,6 +112,15 @@ struct MessageBubbleView: View {
                 onRegenerate(message)
             } label: {
                 Label("Regeneruj odpowiedź", systemImage: "arrow.clockwise")
+            }
+        }
+
+        // Fork - dla każdej (tworzy nową rozmowę skopiowaną do tej wiadomości)
+        if let onFork = onFork, !isStreaming {
+            Button {
+                onFork(message)
+            } label: {
+                Label("Utwórz fork od tego momentu", systemImage: "arrow.triangle.branch")
             }
         }
 

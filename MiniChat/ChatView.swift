@@ -322,6 +322,9 @@ struct ChatView: View {
             },
             onRegenerate: { msg in
                 Task { await viewModel.regenerateFromAssistant(msg) }
+            },
+            onFork: { msg in
+                viewModel.forkMessage(msg)
             }
         )
     }

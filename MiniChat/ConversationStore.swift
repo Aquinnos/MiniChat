@@ -46,6 +46,32 @@ final class ConversationStore: ObservableObject {
         return new
     }
 
+    /// Tworzy fork konwersacji: nową rozmowę zawierającą wiadomości do podanej (inclusive)
+    /// i ustawia ją jako aktywną. Oryginał pozostaje nietknięty.
+    /// Zwraca nową konwersację lub nil jeśli messageId nie znaleziony.
+    @discardableResult
+    func fork(from messageId: UUID, in source: Conversation) -> Conversation? {
+        guard let cutIndex = source.messages.firstIndex(where: { $0.id == messageId }) else {
+            Logger.log("fork: messageId nie znaleziony", category: "ConversationStore", level: .error)
+            return nil
+        }
+        let prefixMessages = Array(source.messages.prefix(through: cutIndex))
+        let forked = Conversation(
+            title: "Fork: \(source.title)",
+            messages: prefixMessages,
+            createdAt: Date(),
+            updatedAt: Date(),
+            isPinned: false,
+            tags: [],
+            folderId: source.folderId
+        )
+        conversations.insert(forked, at: 0)
+        currentConversationId = forked.id
+        save()
+        Logger.log("fork: utworzono \(forked.id) z \(prefixMessages.count) wiadomości", category: "ConversationStore", level: .info)
+        return forked
+    }
+
     /// Ładuje konwersacje z dysku.
     private func load() {
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return }

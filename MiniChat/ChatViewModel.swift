@@ -464,4 +464,11 @@ final class ChatViewModel: ObservableObject {
         store.currentConversation = conversation
         objectWillChange.send()
     }
+
+    /// Fork: tworzy nową konwersację skopiowaną ze wszystkich wiadomości do podanej (inclusive)
+    /// i przełącza na nią. Oryginał pozostaje nietknięty.
+    func forkMessage(_ message: Message) {
+        guard let conversation = store.currentConversation else { return }
+        _ = store.fork(from: message.id, in: conversation)
+    }
 }

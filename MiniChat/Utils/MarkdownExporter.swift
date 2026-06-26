@@ -8,6 +8,11 @@
 import Foundation
 
 enum MarkdownExporter {
+    private static let maxFilenameTitleLength = 50
+    private static let roleLabelUser = "Ty"
+    private static let roleLabelAssistant = "Asystent"
+    private static let roleLabelSystem = "System"
+
     private static let dateFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withFullDate, .withTime, .withColonSeparatorInTime, .withTimeZone]
@@ -38,7 +43,7 @@ enum MarkdownExporter {
         let safeTitle = conversation.title
             .replacingOccurrences(of: "/", with: "-")
             .replacingOccurrences(of: ":", with: "-")
-            .prefix(50)
+            .prefix(maxFilenameTitleLength)
         let datePart = dateFormatter.string(from: conversation.updatedAt)
             .replacingOccurrences(of: ":", with: "-")
         return "MiniChat-\(safeTitle)-\(datePart)"
@@ -50,9 +55,9 @@ enum MarkdownExporter {
         var out = ""
         let roleLabel: String
         switch message.role {
-        case .user: roleLabel = "Ty"
-        case .assistant: roleLabel = "Asystent"
-        case .system: roleLabel = "System"
+        case .user: roleLabel = roleLabelUser
+        case .assistant: roleLabel = roleLabelAssistant
+        case .system: roleLabel = roleLabelSystem
         }
 
         out += "## \(roleLabel)\n\n"

@@ -497,4 +497,56 @@ struct MiniChatTests {
         }
     }
 
+    // MARK: - ConversationStore.rename
+
+    @MainActor
+    @Test func test_store_rename_changes_title() async throws {
+        let store = ConversationStore()
+        store.deleteAll()
+        var conv = store.createNewConversation()
+        conv.title = "Stary tytul"
+        store.currentConversation = conv
+
+        store.rename(conv, to: "Nowy tytul")
+
+        let updated = store.conversations.first(where: { $0.id == conv.id })
+        #expect(updated?.title == "Nowy tytul")
+    }
+
+    @MainActor
+    @Test func test_store_rename_trims_whitespace() async throws {
+        let store = ConversationStore()
+        store.deleteAll()
+        let conv = store.createNewConversation()
+
+        store.rename(conv, to: "   Tytul z spacjami   ")
+
+        let updated = store.conversations.first(where: { $0.id == conv.id })
+        #expect(updated?.title == "Tytul z spacjami")
+    }
+
+    @MainActor
+    @Test func test_store_rename_empty_string_keeps_existing() async throws {
+        let store = ConversationStore()
+        store.deleteAll()
+        var conv = store.createNewConversation()
+        conv.title = "Oryginalny"
+        store.currentConversation = conv
+
+        store.rename(conv, to: "   ")
+
+        let updated = store.conversations.first(where: { $0.id == conv.id })
+        #expect(updated?.title == "Oryginalny")
+    }
+
+    @MainActor
+    @Test func test_store_rename_unknown_conversation_is_noop() async throws {
+        let store = ConversationStore()
+        store.deleteAll()
+        let phantom = Conversation()
+
+        store.rename(phantom, to: "Nowa")
+
+        #expect(store.conversations.contains(where: { $0.id == phantom.id }) == false)
+    }
 }

@@ -190,6 +190,19 @@ final class ConversationStore: ObservableObject {
         }
     }
 
+    // MARK: - Rename
+
+    /// Zmienia tytuł konwersacji. Pusta lub biała spacjami wartość jest ignorowana
+    /// (zostaje aktualny tytuł). Traktuje jak edycję treści - aktualizuje updatedAt.
+    func rename(_ conversation: Conversation, to newTitle: String) {
+        let trimmed = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard let idx = conversations.firstIndex(where: { $0.id == conversation.id }) else { return }
+        conversations[idx].title = trimmed
+        conversations[idx].updatedAt = Date()
+        save()
+    }
+
     /// Zwraca wszystkie unikalne tagi ze wszystkich konwersacji
     var allTags: [String] {
         let set = Set(conversations.flatMap { $0.tags })

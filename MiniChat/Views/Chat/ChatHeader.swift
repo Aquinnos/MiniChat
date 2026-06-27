@@ -15,6 +15,7 @@ struct ChatHeader: View {
     let onShowPresets: () -> Void
     let onStartNewChat: () -> Void
     let onShowSettings: () -> Void
+    let onRenameConversation: () -> Void
 
     var body: some View {
         HStack(spacing: 8) {
@@ -66,9 +67,10 @@ struct ChatHeader: View {
     private var modelButton: some View {
         Button(action: onShowModelPicker) {
             VStack(spacing: 0) {
-                Text("MiniChat")
+                Text(displayedTitle)
                     .font(.headline)
                     .foregroundColor(Theme.textPrimary)
+                    .lineLimit(1)
                 HStack(spacing: 4) {
                     Image(systemName: "cpu").font(.caption2)
                     Text(viewModel.selectedModel.displayName).font(.caption2)
@@ -81,5 +83,17 @@ struct ChatHeader: View {
             }
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            if viewModel.currentConversation != nil {
+                Button(action: onRenameConversation) {
+                    Label("Zmień nazwę", systemImage: "pencil")
+                }
+            }
+        }
+    }
+
+    /// Tytuł konwersacji (gdy istnieje) lub branding aplikacji.
+    private var displayedTitle: String {
+        viewModel.currentConversation?.title ?? "MiniChat"
     }
 }

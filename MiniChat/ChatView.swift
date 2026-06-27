@@ -28,6 +28,7 @@ struct ChatView: View {
     @State private var showFolderPicker: Bool = false
     @State private var showPhotoPicker: Bool = false
     @State private var showImageGen: Bool = false
+    @State private var showRename: Bool = false
     @State private var webSearchEnabled: Bool = UserDefaults.standard.object(forKey: "webSearchEnabled") as? Bool ?? true
     @State private var editingMessage: Message?
     @FocusState private var inputFocused: Bool
@@ -82,6 +83,11 @@ struct ChatView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showRename) {
+                if let conv = viewModel.currentConversation {
+                    RenameSheet(conversation: conv)
+                }
+            }
             .sheet(isPresented: $showPhotoPicker) {
                 PhotoPickerSheet { image in
                     addPhotoAttachment(image)
@@ -106,7 +112,8 @@ struct ChatView: View {
                 onShowModelPicker: { showModelPicker = true },
                 onShowPresets: { showPresets = true },
                 onStartNewChat: { viewModel.startNewChat() },
-                onShowSettings: { showSettings = true }
+                onShowSettings: { showSettings = true },
+                onRenameConversation: { showRename = true }
             )
             Divider().background(theme.gold.opacity(0.3))
             ChatMessagesList(

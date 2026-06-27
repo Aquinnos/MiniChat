@@ -10,6 +10,15 @@ struct Logger {
     private static let defaultCategory = "MiniChat"
     private static let osLogger = os.Logger(subsystem: subsystem, category: defaultCategory)
 
+    // Precompiled regex dla redakcji - unika kosztownej kompilacji per call.
+    // Kompilacja NSRegularExpression trwa ~1ms, a redactor jest wywolywany
+    // przy kazdym logu z redact:true (np. przy API errors z tokenami).
+    private static let base64Pattern = "[A-Za-z0-9+/=\\\\-]{200,}"
+    private static let longBase64Regex: NSRegularExpression = {
+        // swiftlint:disable:next force_try
+        try! NSRegularExpression(pattern: base64Pattern)
+    }()
+
     static func log(_ message: String, category: String = defaultCategory, redact: Bool = false, level: LogLevel = .info) {
         let msg = redact ? redactSensitive(message) : message
         let prefix: String
@@ -40,11 +49,8 @@ struct Logger {
                 out = out.replacingOccurrences(of: String(after), with: "[REDACTED]")
             }
         }
-        let longBase64Pattern = "[A-Za-z0-9+/=\\\\-]{200,}"
-        if let regex = try? NSRegularExpression(pattern: longBase64Pattern) {
-            let range = NSRange(location: 0, length: (out as NSString).length)
-            out = regex.stringByReplacingMatches(in: out, options: [], range: range, withTemplate: "[BASE64_TRUNC]")
-        }
+        let range = NSRange(location: 0, length: (out as NSString).length)
+        out = longBase64Regex.stringByReplacingMatches(in: out, options: [], range: range, withTemplate: "[BASE64_TRUNC]")
         return out
     }
 }

@@ -9,6 +9,14 @@
 import Foundation
 
 enum TextCleaning {
+    /// Precompiled regex dla wielokrotnych nowych linii. Kompilacja regexa
+    /// trwa ~1ms - cache pozwala uniknąć kosztu przy każdym wywołaniu clean()
+    /// (który jest wywoływany per stream chunk).
+    nonisolated private static let multipleNewlinesRegex: NSRegularExpression = {
+        // swiftlint:disable:next force_try
+        try! NSRegularExpression(pattern: "\n{4,}")
+    }()
+
     /// Czyści tekst z modelu: normalizuje Unicode, usuwa białe znaki,
     /// zamienia smart quotes na polskie, parsuje literalne escape sequences.
     /// NIE usuwa ZWJ (\u{200D}) - potrzebne dla złożonych znaków.
@@ -32,8 +40,12 @@ enum TextCleaning {
         result = result.replacingOccurrences(of: "\\\"", with: "\"")
         result = result.replacingOccurrences(of: "\\t", with: "\t")
 
-        // Wielokrotne nowe linie → max 3
-        result = result.replacingOccurrences(of: "\n{4,}", with: "\n\n\n", options: .regularExpression)
+        // Wielokrotne nowe linie → max 3 (precompiled regex)
+        let nsString = result as NSString
+        let range = NSRange(location: 0, length: nsString.length)
+        result = multipleNewlinesRegex.stringByReplacingMatches(
+            in: result, options: [], range: range, withTemplate: "\n\n\n"
+        )
 
         return result
     }

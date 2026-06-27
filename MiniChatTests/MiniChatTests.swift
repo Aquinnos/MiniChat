@@ -463,4 +463,38 @@ struct MiniChatTests {
         #expect(stats.totalTags == 0)
         #expect(stats.topTags.isEmpty)
     }
+
+    // MARK: - MarkdownParser cache
+
+    @Test func test_markdownParser_returns_same_segments_for_same_input() async throws {
+        // Cache nie powinien zmieniac wynikow - ten sam input musi dac ten sam output.
+        let text = "Hej\n```swift\nlet x = 1\n```\nKoniec"
+        let first = MarkdownParser.parse(text)
+        let second = MarkdownParser.parse(text)
+        #expect(first.count == second.count)
+        for (a, b) in zip(first, second) {
+            switch (a, b) {
+            case (.text(let ta), .text(let tb)):
+                #expect(ta == tb)
+            case (.code(let ca, let la), .code(let cb, let lb)):
+                #expect(ca == cb)
+                #expect(la == lb)
+            default:
+                Issue.record("Rozne typy segmentow przy tym samym inpucie")
+            }
+        }
+    }
+
+    @Test func test_markdownParser_handles_unclosed_code_block() async throws {
+        // Niezamkniety blok traktowany jako tekst - weryfikacja ze cache nie psuje edge case'a
+        let text = "Przed ```swift\nlet x = 1"
+        let segments = MarkdownParser.parse(text)
+        #expect(segments.count == 1)
+        if case .text(let t) = segments[0] {
+            #expect(t.contains("```swift"))
+        } else {
+            Issue.record("Niezamknięty blok powinien być tekstem")
+        }
+    }
+
 }

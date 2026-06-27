@@ -35,15 +35,15 @@ enum CodeSyntaxHighlighter {
     /// Highlightuje kod i zwraca AttributedString. Język auto-detectowany z nazwy lub zawartości.
     static func highlight(_ code: String, language: String?) -> AttributedString {
         let lang = (language ?? autoDetectLanguage(code)).lowercased()
-        let rules = rulesFor(language: lang)
-        return applyRules(code, rules: rules, baseColor: Theme.textPrimary)
+        let compiled = compiledRulesFor(language: lang)
+        return applyCompiledRules(code, compiled: compiled, baseColor: Theme.textPrimary)
     }
 
     /// Wersja dla user bubble - biały tekst na niebieskim tle
     static func highlightForUser(_ code: String, language: String?) -> AttributedString {
         let lang = (language ?? autoDetectLanguage(code)).lowercased()
-        let rules = rulesFor(language: lang)
-        return applyRules(code, rules: rules, baseColor: .white)
+        let compiled = compiledRulesFor(language: lang)
+        return applyCompiledRules(code, compiled: compiled, baseColor: .white)
     }
 
     // MARK: - Language detection
@@ -88,6 +88,34 @@ enum CodeSyntaxHighlighter {
         let pattern: String
         let style: TokenType
         let isMultiline: Bool
+    }
+
+    /// Precompiled rule z gotowym NSRegularExpression - unika kosztownej
+    /// kompilacji przy kazdym wywolaniu highlight/highlightForUser.
+    private struct CompiledRule {
+        let regex: NSRegularExpression
+        let style: TokenType
+    }
+
+    /// Cache skompilowanych regul per jezyk. NSCache jest thread-safe
+    /// i automatycznie zwalnia pamiec pod memory pressure.
+    private static let compiledRulesCache = NSCache<NSString, NSArray>()
+
+    private static func compiledRulesFor(language: String) -> [CompiledRule] {
+        let key = language as NSString
+        if let cached = compiledRulesCache.object(forKey: key) as? [CompiledRule] {
+            return cached
+        }
+        let rules = rulesFor(language: language)
+        let compiled: [CompiledRule] = rules.compactMap { rule in
+            guard let regex = try? NSRegularExpression(
+                pattern: rule.pattern,
+                options: rule.isMultiline ? [.anchorsMatchLines] : []
+            ) else { return nil }
+            return CompiledRule(regex: regex, style: rule.style)
+        }
+        compiledRulesCache.setObject(compiled as NSArray, forKey: key)
+        return compiled
     }
 
     private static func rulesFor(language: String) -> [Rule] {
@@ -144,19 +172,18 @@ enum CodeSyntaxHighlighter {
 
     // MARK: - Apply rules
 
-    private static func applyRules(_ code: String, rules: [Rule], baseColor: Color) -> AttributedString {
+    private static func applyCompiledRules(_ code: String, compiled: [CompiledRule], baseColor: Color) -> AttributedString {
         // Strategia: znajdź wszystkie matche, posortuj po pozycji, unikaj overlapów.
-        // Każdy match dostaje swój styl.
+        // Każdy match dostaje swój styl. Regexy są precompilowane per język.
         struct Match {
             let range: NSRange
             let style: TokenType
         }
 
         var matches: [Match] = []
-        for rule in rules {
-            guard let regex = try? NSRegularExpression(pattern: rule.pattern, options: rule.isMultiline ? [.anchorsMatchLines] : []) else { continue }
-            let range = NSRange(code.startIndex..., in: code)
-            let nsMatches = regex.matches(in: code, options: [], range: range)
+        let range = NSRange(code.startIndex..., in: code)
+        for rule in compiled {
+            let nsMatches = rule.regex.matches(in: code, options: [], range: range)
             for m in nsMatches {
                 matches.append(Match(range: m.range, style: rule.style))
             }

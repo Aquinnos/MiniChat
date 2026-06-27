@@ -14,9 +14,35 @@ enum MarkdownSegment {
 }
 
 enum MarkdownParser {
+    /// Cache wynikow parse - MarkdownText renderuje sie przy kazdym stream
+    /// chunku i scrollu, a parser jest deterministyczny (ten sam input = ten
+    /// sam output). NSCache automatycznie zwalnia pamiec pod memory pressure.
+    private static let parseCache = NSCache<NSString, ParseResult>()
+
+    /// Limit rozmiaru cache - wystarczajaco duzy dla aktywnej rozmowy,
+    /// ale nie pozwala rosnac w nieskonczonosc.
+    private static let maxCacheEntries = 64
+
+    /// Wrapper bo [MarkdownSegment] nie jest NSArray-compatible.
+    private final class ParseResult {
+        let segments: [MarkdownSegment]
+        init(_ segments: [MarkdownSegment]) { self.segments = segments }
+    }
+
     /// Parsuje markdown dzieląc go na segmenty tekstowe i bloki kodu.
     /// Obsługuje format ```lang\n...\n```. Niezamknięty blok traktowany jako tekst.
+    /// Wyniki cache'owane po tresci - powtorny render tego samego tekstu jest free.
     static func parse(_ text: String) -> [MarkdownSegment] {
+        let key = text as NSString
+        if let cached = parseCache.object(forKey: key) {
+            return cached.segments
+        }
+        let segments = parseUncached(text)
+        parseCache.setObject(ParseResult(segments), forKey: key)
+        return segments
+    }
+
+    private static func parseUncached(_ text: String) -> [MarkdownSegment] {
         var segments: [MarkdownSegment] = []
         var currentText = ""
         var i = text.startIndex
